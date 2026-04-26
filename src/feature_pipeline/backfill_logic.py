@@ -95,13 +95,8 @@ class Backfill:
             logger.warning("No models found, exiting")
             return pd.DataFrame()
 
-        feature_rows = []
-        for i, model in enumerate(models):
-            features = self._computer.compute_features(model)
-            feature_rows.append(features)
-
-            if (i + 1) % 100 == 0:
-                logger.info("Computed features for %d / %d models", i + 1, len(models))
+        logger.info("Computing features for %d models (batch_size=64)", len(models))
+        feature_rows = self._computer.compute_features_batch(models, batch_size=64)
 
         df = pd.DataFrame(feature_rows)
 

@@ -188,6 +188,58 @@ class FeatureComputer:
             **metadata,
         }
 
+    def compute_features_batch(
+        self,
+        models: list[dict],
+        prior_snapshots: list[dict] | None = None,
+        batch_size: int = 64,
+    ) -> list[dict]:
+        """Compute features for multiple models with batched encoding.
+
+        Args:
+            models: List of model dicts as returned by ingest.
+            prior_snapshots: Previous daily snapshots for velocity computation.
+            batch_size: Batch size for sentence-transformer encoding.
+
+        Returns:
+            List of flat feature dicts.
+        """
+        # Clean all card texts
+        cleaned_texts = [clean_card_text(m.get("card_text")) for m in models]
+
+        # Batch-encode non-None texts
+        texts_to_encode = [t.lower() for t in cleaned_texts if t]
+        encodable_indices = [i for i, t in enumerate(cleaned_texts) if t]
+
+        embeddings = {}
+        if texts_to_encode:
+            encoded = self._encoder.encode(
+                texts_to_encode, normalize_embeddings=True, batch_size=batch_size
+            )
+            for idx, emb in zip(encodable_indices, encoded):
+                embeddings[idx] = emb
+
+        # Assemble features using precomputed embeddings
+        results = []
+        for i, model in enumerate(models):
+            card_embedding = embeddings.get(i)
+            semantic_relevance = self.compute_semantic_relevance(card_embedding)
+            age_hours = self.compute_age_hours(model["created_at"], model["snapshot_date"])
+            velocity = self.compute_download_velocity(model["created_at"], prior_snapshots)
+            metadata = self.compute_metadata_features(model)
+
+            results.append({
+                "model_id": model["model_id"],
+                "created_at": model["created_at"],
+                "snapshot_date": model["snapshot_date"],
+                **semantic_relevance,
+                "age_hours": age_hours,
+                **velocity,
+                **metadata,
+            })
+
+        return results
+
 
 if __name__ == "__main__":
     computer = FeatureComputer()

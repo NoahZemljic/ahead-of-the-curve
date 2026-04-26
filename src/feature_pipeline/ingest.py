@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -25,12 +27,12 @@ EXPAND_FIELDS = [
 ]
 
 
-def _model_to_dict(model, snapshot_date: str) -> dict:
+def _model_to_dict(model, snapshot_date: str, card_text: str | None = None) -> dict:
     """Convert an HF ModelInfo object to a flat dict with card text."""
     return {
         "model_id": model.id,
         "author": model.author,
-        "card_text": _fetch_card_text(model.id),
+        "card_text": card_text,
         "created_at": model.created_at,
         "last_modified": model.last_modified,
         "downloads_30d": model.downloads,
@@ -40,7 +42,6 @@ def _model_to_dict(model, snapshot_date: str) -> dict:
         "tags": model.tags,
         "snapshot_date": snapshot_date,
     }
-
 
 def fetch_robotics_models(limit: int | None = None) -> list[dict]:
     """Fetch general-purpose robotics models from the Hugging Face Hub.
@@ -57,14 +58,15 @@ def fetch_robotics_models(limit: int | None = None) -> list[dict]:
     api = HfApi(token=HF_TOKEN)
     snapshot_date = datetime.now(timezone.utc).date().isoformat()
 
-    models = api.list_models(
+    models = list(api.list_models(
         pipeline_tag="robotics",
         sort="trending_score",
         expand=EXPAND_FIELDS,
         limit=limit,
-    )
+    ))
 
-    return [_model_to_dict(m, snapshot_date) for m in models]
+    card_texts = _fetch_card_texts_parallel([m.id for m in models])
+    return [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
 
 def fetch_backfill_models(days: int = 90) -> list[dict]:
@@ -82,29 +84,42 @@ def fetch_backfill_models(days: int = 90) -> list[dict]:
 
     models = api.list_models(
         pipeline_tag="robotics",
-        sort="downloads",
         expand=EXPAND_FIELDS,
-        limit=1000
     )
 
-    results = []
-    for model in models:
-        if model.created_at is None or model.created_at < cutoff:
-            continue
-        results.append(_model_to_dict(model, snapshot_date))
+    filtered = [m for m in models if m.created_at is not None and m.created_at >= cutoff]
+
+    card_texts = _fetch_card_texts_parallel([m.id for m in filtered])
+    results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in filtered]
 
     logger.info("Fetched %d models created in the last %d days", len(results), days)
     return results
 
+def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
+    """Fetch model card texts in parallel using a thread pool."""
+    results = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_fetch_card_text, mid): mid for mid in model_ids}
+        for future in as_completed(futures):
+            mid = futures[future]
+            results[mid] = future.result()
+    return results
 
-def _fetch_card_text(model_id: str) -> str | None:
-    """Fetch the model card README text for a given model."""
-    try:
-        card = ModelCard.load(model_id, token=HF_TOKEN)
-        return card.text if card.text else None
-    except Exception:
-        logger.warning("Failed to fetch model card for %s", model_id)
-        return None
+
+def _fetch_card_text(model_id: str, max_retries: int = 3) -> str | None:
+    """Fetch the model card README text for a given model, with retry on 429."""
+    for attempt in range(max_retries):
+        try:
+            card = ModelCard.load(model_id, token=HF_TOKEN)
+            return card.text if card.text else None
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                wait = 2 ** attempt
+                logger.warning("Rate limited fetching %s, retrying in %ds", model_id, wait)
+                time.sleep(wait)
+                continue
+            logger.warning("Failed to fetch model card for %s: %s", model_id, e)
+            return None
 
 
 if __name__ == "__main__":
