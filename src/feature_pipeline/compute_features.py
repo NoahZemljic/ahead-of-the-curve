@@ -180,6 +180,7 @@ class FeatureComputer:
 
         return {
             "model_id": model["model_id"],
+            "created_at": model["created_at"],
             "snapshot_date": model["snapshot_date"],
             **semantic_relevance,
             "age_hours": age_hours,
