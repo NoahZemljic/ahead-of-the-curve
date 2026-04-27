@@ -43,13 +43,12 @@ def _model_to_dict(model, snapshot_date: str, card_text: str | None = None) -> d
         "snapshot_date": snapshot_date,
     }
 
-def fetch_robotics_models(limit: int | None = None) -> list[dict]:
-    """Fetch general-purpose robotics models from the Hugging Face Hub.
-
-    Queries models with pipeline_tag='robotics', sorted by trending score
-    descending so that the most relevant general-purpose models appear first.
+def fetch_models(since_days: int | None = None, limit: int | None = None) -> list[dict]:
+    """Fetch robotics models from the Hugging Face Hub.
 
     Args:
+        since_days: Only return models created within this many days.
+            None fetches all models regardless of age.
         limit: Maximum number of models to return. None fetches all.
 
     Returns:
@@ -65,35 +64,14 @@ def fetch_robotics_models(limit: int | None = None) -> list[dict]:
         limit=limit,
     ))
 
+    if since_days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
+        models = [m for m in models if m.created_at is not None and m.created_at >= cutoff]
+
     card_texts = _fetch_card_texts_parallel([m.id for m in models])
-    return [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
+    results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
-
-def fetch_backfill_models(days: int = 90) -> list[dict]:
-    """Fetch all robotics models created within the last `days` days.
-
-    Args:
-        days: Number of days to look back from today.
-
-    Returns:
-        List of model dictionaries, sorted by creation date (newest first).
-    """
-    api = HfApi(token=HF_TOKEN)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    snapshot_date = datetime.now(timezone.utc).date().isoformat()
-
-    models = api.list_models(
-        pipeline_tag="robotics",
-        limit=1,
-        expand=EXPAND_FIELDS,
-    )
-
-    filtered = [m for m in models if m.created_at is not None and m.created_at >= cutoff]
-
-    card_texts = _fetch_card_texts_parallel([m.id for m in filtered])
-    results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in filtered]
-
-    logger.info(f"Fetched {len(results)} models created in the last {days} days")
+    logger.info(f"Fetched {len(results)} models" + (f" created in the last {since_days} days" if since_days else ""))
     return results
 
 def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
@@ -124,5 +102,5 @@ def _fetch_card_text(model_id: str, max_retries: int = 3) -> str | None:
 
 
 if __name__ == "__main__":
-    models = fetch_robotics_models(limit=1)
-    print(models[0]["card_text"])
+    models = fetch_models(limit=1)
+    print(models[0])

@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 
 from compute_features import FeatureComputer
-from ingest import fetch_backfill_models
+from ingest import fetch_models
 from feature_pipeline.compute_labels import Labeller
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class Backfill:
 
         logger.info(f"Starting backfill for the last {self.BACKFILL_DAYS} days")
 
-        models = fetch_backfill_models(days=self.BACKFILL_DAYS)
+        models = fetch_models(since_days=self.BACKFILL_DAYS)
         if not models:
             logger.warning("No models found, exiting")
             return pd.DataFrame()

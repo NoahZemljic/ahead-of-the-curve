@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from ingest import fetch_robotics_models
+from ingest import fetch_models
 
 TOPIC_REFERENCES = {
     "robotics": (
@@ -160,7 +160,7 @@ class FeatureComputer:
         """Compute the full feature row for a single model.
 
         Args:
-            model: Model dict as returned by ingest.fetch_robotics_models().
+            model: Model dict as returned by ingest.fetch_models().
             prior_snapshots: Previous daily snapshots for velocity computation.
 
         Returns:
@@ -240,10 +240,10 @@ class FeatureComputer:
 
         return results
 
-
+# For test purposes only
 if __name__ == "__main__":
     computer = FeatureComputer()
-    models = fetch_robotics_models(limit=1)
+    models = fetch_models(limit=1)
 
     for m in models:
         features = computer.compute_features(m)
