@@ -84,6 +84,7 @@ def fetch_backfill_models(days: int = 90) -> list[dict]:
 
     models = api.list_models(
         pipeline_tag="robotics",
+        limit=1,
         expand=EXPAND_FIELDS,
     )
 
@@ -92,14 +93,14 @@ def fetch_backfill_models(days: int = 90) -> list[dict]:
     card_texts = _fetch_card_texts_parallel([m.id for m in filtered])
     results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in filtered]
 
-    logger.info("Fetched %d models created in the last %d days", len(results), days)
+    logger.info(f"Fetched {len(results)} models created in the last {days} days")
     return results
 
 def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
     """Fetch model card texts in parallel using a thread pool."""
     results = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_fetch_card_text, mid): mid for mid in model_ids}
+        futures = {executor.submit(_fetch_card_text, model_id): model_id for model_id in model_ids}
         for future in as_completed(futures):
             mid = futures[future]
             results[mid] = future.result()
@@ -115,10 +116,10 @@ def _fetch_card_text(model_id: str, max_retries: int = 3) -> str | None:
         except Exception as e:
             if "429" in str(e) and attempt < max_retries - 1:
                 wait = 2 ** attempt
-                logger.warning("Rate limited fetching %s, retrying in %ds", model_id, wait)
+                logger.warning(f"Rate limited fetching {model_id}, retrying in {wait}s")
                 time.sleep(wait)
                 continue
-            logger.warning("Failed to fetch model card for %s: %s", model_id, e)
+            logger.warning(f"Failed to fetch model card for {model_id}: {e}")
             return None
 
 

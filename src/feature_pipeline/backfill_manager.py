@@ -103,7 +103,7 @@ class BackfillManager:
             logger.warning("Backfill returned no data, skipping Hopsworks upsert")
             return df
 
-        logger.info("Pushing %d rows to Hopsworks", len(df))
+        logger.info(f"Pushing {len(df)} rows to Hopsworks")
         self.upsert(df)
         logger.info("Backfill complete")
         return df
