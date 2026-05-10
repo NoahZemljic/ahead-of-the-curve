@@ -6,7 +6,7 @@ Identifying Frontier Models Before the Crowd Does
 
 ```
 ahead-of-the-curve/
-├── dags/                      # Airflow DAG definitions
+├── .github/                      # GitHub Actions workflows
 ├── src/
 │   ├── feature_pipeline/      # Data ingestion + feature engineering
 │   ├── training_pipeline/     # Model training + evaluation
