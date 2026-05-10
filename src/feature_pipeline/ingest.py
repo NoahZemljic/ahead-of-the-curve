@@ -26,6 +26,11 @@ EXPAND_FIELDS = [
     "library_name",
 ]
 
+BACKFILL_TOPICS = [
+    {"pipeline_tag": "robotics"},
+    {"pipeline_tag": "image-text-to-text"},
+    {"pipeline_tag": "text-generation", "limit": 5000},
+]
 
 def _model_to_dict(model, snapshot_date: str, card_text: str | None = None) -> dict:
     """Convert an HF ModelInfo object to a flat dict with card text."""
@@ -43,35 +48,69 @@ def _model_to_dict(model, snapshot_date: str, card_text: str | None = None) -> d
         "snapshot_date": snapshot_date,
     }
 
-def fetch_models(since_days: int | None = None, limit: int | None = None) -> list[dict]:
-    """Fetch robotics models from the Hugging Face Hub.
 
-    Args:
-        since_days: Only return models created within this many days.
-            None fetches all models regardless of age.
-        limit: Maximum number of models to return. None fetches all.
+def fetch_models(since_days: int = 1) -> list[dict]:
+    """Fetch the first 3000 created models from the Hugging Face Hub.
 
-    Returns:
-        List of model dictionaries with expanded metadata.
+    Used by the daily pipeline to discover new models across all categories.
+    Models are sorted by creation date and only those created within
+    the given window are returned.
     """
     api = HfApi(token=HF_TOKEN)
     snapshot_date = datetime.now(timezone.utc).date().isoformat()
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
 
-    models = list(api.list_models(
-        pipeline_tag="robotics",
-        sort="trending_score",
+    models = []
+    for model in api.list_models(
+        sort="created_at",
+        limit=3000,
         expand=EXPAND_FIELDS,
-        limit=limit,
-    ))
-
-    if since_days is not None:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
-        models = [m for m in models if m.created_at is not None and m.created_at >= cutoff]
+    ):
+        if model.last_modified and model.last_modified < cutoff_date:
+            break
+        models.append(model)
 
     card_texts = _fetch_card_texts_parallel([m.id for m in models])
     results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
-    logger.info(f"Fetched {len(results)} models" + (f" created in the last {since_days} days" if since_days else ""))
+    logger.info(f"Fetched {len(results)} models modified in the last {since_days} day(s)")
+    return results
+
+
+def fetch_models_backfill(since_days: int = 90) -> list[dict]:
+    """Fetch models from frontier topics (robotics, multimodal reasoning, SLMs) for historical backfill.
+
+    Queries each top separately, combines results, deduplicates, and filters to models
+    created within the given time window.
+    """
+    api = HfApi(token=HF_TOKEN)
+    snapshot_date = datetime.now(timezone.utc).date().isoformat()
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
+
+    seen_models = set()
+    all_models = []
+
+    for topic in BACKFILL_TOPICS:
+        topic_models = list(api.list_models(
+            pipeline_tag=topic["pipeline_tag"],
+            sort="trending_score",
+            expand=EXPAND_FIELDS,
+            limit=topic.get("limit"),
+        ))
+
+        for m in topic_models:
+            if m.id not in seen_models:
+                seen_models.add(m.id)
+                all_models.append(m)
+
+        logger.info(f"Fetched {len(topic_models)} models for topic '{topic['pipeline_tag']}'")
+
+    all_models = [m for m in all_models if m.created_at and m.created_at >= cutoff_date]
+
+    card_texts = _fetch_card_texts_parallel([m.id for m in all_models])
+    results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in all_models]
+
+    logger.info(f"Backfill: {len(results)} models across {len(BACKFILL_TOPICS)} niches (last {since_days} days)")
     return results
 
 def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
@@ -102,5 +141,6 @@ def _fetch_card_text(model_id: str, max_retries: int = 3) -> str | None:
 
 
 if __name__ == "__main__":
-    models = fetch_models(limit=1)
-    print(models[0])
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    models = fetch_models(since_days=1)
+    print(f"Daily: {len(models)} models fetched.")
