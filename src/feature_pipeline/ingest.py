@@ -3,14 +3,10 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, ModelCard
 
-_env_file = Path(__file__).resolve().parents[2] / ".env"
-if _env_file.exists():
-    load_dotenv(_env_file)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
