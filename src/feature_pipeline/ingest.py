@@ -110,7 +110,7 @@ def fetch_models_backfill(since_days: int = 90) -> list[dict]:
     card_texts = _fetch_card_texts_parallel([m.id for m in all_models])
     results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in all_models]
 
-    logger.info(f"Backfill: {len(results)} models across {len(BACKFILL_TOPICS)} niches (last {since_days} days)")
+    logger.info(f"Backfill: {len(results)} models across {len(BACKFILL_TOPICS)} topics (last {since_days} days)")
     return results
 
 def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
