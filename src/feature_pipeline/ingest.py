@@ -30,6 +30,8 @@ BACKFILL_TOPICS = [
     {"pipeline_tag": "text-generation", "limit": 5000},
 ]
 
+DAILY_FETCH_LIMIT = 4000
+
 def _model_to_dict(model, snapshot_date: str, card_text: str | None = None) -> dict:
     """Convert an HF ModelInfo object to a flat dict with card text."""
     return {
@@ -61,7 +63,7 @@ def fetch_models(since_days: int = 1) -> list[dict]:
     models = []
     for model in api.list_models(
         sort="created_at",
-        limit=3000,
+        limit=DAILY_FETCH_LIMIT,
         expand=EXPAND_FIELDS,
     ):
         if model.last_modified and model.last_modified < cutoff_date:
