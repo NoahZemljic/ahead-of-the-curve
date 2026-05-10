@@ -111,6 +111,30 @@ def fetch_models_backfill(since_days: int = 90) -> list[dict]:
     logger.info(f"Backfill: {len(results)} models across {len(BACKFILL_TOPICS)} topics (last {since_days} days)")
     return results
 
+def fetch_models_by_id(model_ids: list[str]) -> list[dict]:
+    """Fetch current state of specific models by their IDs.
+
+    Used to re-snapshot young models for velocity tracking, even when they
+    don't appear in the daily fetch_models() results.
+    """
+    api = HfApi(token=HF_TOKEN)
+    snapshot_date = datetime.now(timezone.utc).date().isoformat()
+
+    models = []
+    for model_id in model_ids:
+        try:
+            model = api.model_info(model_id, expand=EXPAND_FIELDS)
+            models.append(model)
+        except Exception as e:
+            logger.warning(f"Failed to fetch model info for {model_id}: {e}")
+
+    card_texts = _fetch_card_texts_parallel([m.id for m in models])
+    results = [_model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
+
+    logger.info(f"Re-fetched {len(results)} models by ID for velocity tracking")
+    return results
+
+
 def _fetch_card_texts_parallel(model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
     """Fetch model card texts in parallel using a thread pool."""
     results = {}

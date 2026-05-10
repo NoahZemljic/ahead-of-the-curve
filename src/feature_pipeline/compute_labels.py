@@ -23,7 +23,7 @@ class Labeller:
 
     LABEL_MATURITY_DAYS = 30
 
-    def attach_labels(self, df: pd.DataFrame) -> pd.DataFrame:
+    def compute_labels(self, df: pd.DataFrame) -> pd.DataFrame:
         now = datetime.now(timezone.utc)
 
         df["download_growth_30d"] = None

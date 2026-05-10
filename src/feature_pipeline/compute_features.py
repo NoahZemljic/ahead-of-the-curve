@@ -154,7 +154,7 @@ class FeatureComputer:
             "downloads_30d": model.get("downloads_30d", 0),
             "downloads_all_time": model.get("downloads_all_time", 0),
             "tag_count": len(tags),
-            "has_paper_tag": any(t.startswith("arxiv:") for t in tags),
+            "has_paper_tag": any(tag.startswith("arxiv:") for tag in tags),
         }
 
     def compute_features(self, model: dict, prior_snapshots: list[dict] | None = None) -> dict:
@@ -192,14 +192,15 @@ class FeatureComputer:
     def compute_features_batch(
         self,
         models: list[dict],
-        prior_snapshots: list[dict] | None = None,
+        prior_snapshots: dict[str, list[dict]] | None = None,
         batch_size: int = 64,
     ) -> list[dict]:
         """Compute features for multiple models with batched encoding.
 
         Args:
             models: List of model dicts.
-            prior_snapshots: Previous daily snapshots for velocity computation.
+            prior_snapshots: Dict mapping model_id to its prior snapshot records
+                for download velocity computation within the first 24 / 72 hours.
             batch_size: Batch size for sentence-transformer encoding.
 
         Returns:
@@ -226,7 +227,8 @@ class FeatureComputer:
             card_embedding = embeddings.get(i)
             semantic_relevance = self.compute_semantic_relevance(card_embedding)
             age_hours = self.compute_age_hours(model["created_at"], model["snapshot_date"])
-            velocity = self.compute_download_velocity(model["created_at"], prior_snapshots)
+            model_snapshots = prior_snapshots.get(model["model_id"]) if prior_snapshots else None
+            velocity = self.compute_download_velocity(model["created_at"], model_snapshots)
             metadata = self.compute_metadata_features(model)
 
             results.append({

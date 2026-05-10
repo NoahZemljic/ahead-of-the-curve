@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 
 import hopsworks
 import pandas as pd
@@ -58,6 +59,74 @@ class HopsworksStore:
         df["best_topic"] = df["best_topic"].astype(str)
 
         return df
+
+    def fetch_young_model_ids(self, max_age_hours: int = 76) -> list[str]:
+        """Return model_ids created within the last max_age_hours from the feature store.
+
+        Used to identify models that still need velocity snapshots even if
+        they no longer appear in the daily fetch_models() results.
+        """
+        fs = self._get_feature_store()
+
+        try:
+            fg = fs.get_feature_group(
+                name=self.FEATURE_GROUP_NAME,
+                version=self.FEATURE_GROUP_VERSION,
+            )
+        except Exception:
+            return []
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        df = fg.select(["model_id", "created_at"]) \
+             .filter(fg.created_at >= cutoff) \
+             .read()
+
+        if df.empty:
+            return []
+
+        return df["model_id"].unique().tolist()
+
+    def fetch_prior_snapshots(self, model_ids: list[str]) -> dict[str, list[dict]]:
+        """Fetch prior snapshots from the feature store for velocity computation.
+
+        Returns a dict mapping model_id to its list of prior snapshot records,
+        each containing snapshot_date (ISO string) and downloads_30d.
+        """
+        if not model_ids:
+            return {}
+
+        fs = self._get_feature_store()
+
+        try:
+            fg = fs.get_feature_group(
+                name=self.FEATURE_GROUP_NAME,
+                version=self.FEATURE_GROUP_VERSION,
+            )
+        except Exception:
+            logger.info("Feature group not found, no prior snapshots available")
+            return {}
+
+        # Fetch previous model versions
+        df = fg.select(["model_id", "snapshot_date", "downloads_30d"]) \
+             .filter(fg.model_id.isin(model_ids)) \
+             .read()
+
+        if df.empty:
+            return {}
+
+        snapshots = {}
+
+        for model_id, group in df.groupby("model_id"):
+            snapshots[model_id] = [
+                {
+                    "snapshot_date": row["snapshot_date"].isoformat(),
+                    "downloads_30d": row["downloads_30d"],
+                }
+                for _, row in group.iterrows()
+            ]
+
+        logger.info(f"Fetched prior snapshots for {len(snapshots)} / {len(model_ids)} models")
+        return snapshots
 
     def upsert(self, df: pd.DataFrame) -> None:
         """Upsert a DataFrame into the Hopsworks feature group.
