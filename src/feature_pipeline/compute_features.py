@@ -1,8 +1,11 @@
+import logging
 import re
 from datetime import datetime, timezone
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 from ingest import fetch_models
 
@@ -157,38 +160,6 @@ class FeatureComputer:
             "has_paper_tag": any(tag.startswith("arxiv:") for tag in tags),
         }
 
-    def compute_features(self, model: dict, prior_snapshots: list[dict] | None = None) -> dict:
-        """Compute the full feature row for a single model.
-
-        Args:
-            model: Model dict as returned by ingest.fetch_models().
-            prior_snapshots: Previous daily snapshots for velocity computation.
-
-        Returns:
-            Flat dict with all features, ready for the feature store.
-        """
-        cleaned_text = self.clean_card_text(model.get("card_text"))
-
-        card_embedding = None
-        if cleaned_text:
-            card_embedding = self._encoder.encode(cleaned_text.lower(), normalize_embeddings=True)
-
-        # Compute features
-        semantic_relevance = self.compute_semantic_relevance(card_embedding)
-        age_hours = self.compute_age_hours(model["created_at"], model["snapshot_date"])
-        velocity = self.compute_download_velocity(model["created_at"], prior_snapshots)
-        metadata = self.compute_metadata_features(model)
-
-        return {
-            "model_id": model["model_id"],
-            "created_at": model["created_at"],
-            "snapshot_date": model["snapshot_date"],
-            **semantic_relevance,
-            "age_hours": age_hours,
-            **velocity,
-            **metadata,
-        }
-
     def compute_features_batch(
         self,
         models: list[dict],
@@ -241,21 +212,11 @@ class FeatureComputer:
                 **metadata,
             })
 
+        has_24h = sum(1 for r in results if r["download_velocity_24h"] is not None)
+        has_72h = sum(1 for r in results if r["download_velocity_72h"] is not None)
+        logger.info(
+            f"Download velocity computed for {has_24h} / {len(results)} models (24h) "
+            f"and {has_72h} / {len(results)} models (72h)"
+        )
+
         return results
-
-# For test purposes only
-if __name__ == "__main__":
-    computer = FeatureComputer()
-    models = fetch_models(since_days=1)[:1]
-
-    for m in models:
-        features = computer.compute_features(m)
-        print(f"\n{'=' * 60}")
-        print(f"Model: {features['model_id']}")
-        print(f"  Relevance  robotics={features['relevance_robotics']:.3f}  "
-              f"slm={features['relevance_slm']:.3f}  "
-              f"multimodal={features['relevance_multimodal']:.3f}")
-        print(f"  Best topic: {features['best_topic']} ({features['best_topic_score']:.3f})")
-        print(f"  Age: {features['age_hours']:.1f}h" if features['age_hours'] else "  Age: N/A")
-        print(f"  Likes: {features['likes']}  Trending: {features['trending_score']}  "
-              f"Tags: {features['tag_count']}  Paper: {features['has_paper_tag']}")
