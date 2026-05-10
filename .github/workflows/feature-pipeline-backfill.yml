@@ -1,0 +1,20 @@
+name: Feature Pipeline Backfill
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f docker/feature-pipeline/Dockerfile -t feature-pipeline .
+
+      - name: Run backfill pipeline
+        run: |
+          docker run --rm \
+            -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
+            -e HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }} \
+            feature-pipeline backfill_manager.py
