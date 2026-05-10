@@ -1,12 +1,11 @@
 import logging
 import os
-from pathlib import Path
 
 import hopsworks
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
