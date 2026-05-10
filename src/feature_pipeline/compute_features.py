@@ -25,50 +25,6 @@ TOPIC_REFERENCES = {
     ),
 }
 
-def clean_card_text(text: str | None) -> str | None:
-    """Strip HTML tags, markdown images/links, URLs, and table rows from card text."""
-    if not text:
-        return None
-
-    # HTML tags
-    text = re.sub(r"<[^>]+>", " ", text)
-    # Markdown images ![alt](url)
-    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text)
-    # Markdown links [text](url) → text
-    text = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", text)
-    # Bare URLs
-    text = re.sub(r"https?://\S+", "", text)
-    # Markdown table rows
-    text = re.sub(r"\|[^\n]+\|", "", text)
-    # Markdown formatting chars
-    text = re.sub(r"[#*_>{}\[\]]+", " ", text)
-    # Collapse whitespace
-    text = re.sub(r"\s+", " ", text).strip()
-
-    return text if text else None
-
-def set_timezone_utc(dt: datetime) -> datetime:
-    """Attach UTC timezone if the datetime is naive."""
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
-
-def _find_downloads_at_age(
-    prior_snapshots: list[dict],
-    created_at: datetime,
-    min_hours: float,
-    max_hours: float,
-) -> int | None:
-    """Find downloads_30d from a snapshot taken within [min_hours, max_hours] after model creation."""
-    for snapshot in prior_snapshots:
-        snap_time = set_timezone_utc(datetime.fromisoformat(snapshot["snapshot_date"]))
-        hours_since_creation = (snap_time - created_at).total_seconds() / 3600
-
-        if min_hours <= hours_since_creation <= max_hours:
-            return snapshot.get("downloads_30d")
-
-    return None
-
 class FeatureComputer:
     def __init__(self):
         self._encoder = SentenceTransformer("all-MiniLM-L6-v2")
@@ -76,6 +32,51 @@ class FeatureComputer:
             topic: self._encoder.encode(text, normalize_embeddings=True)
             for topic, text in TOPIC_REFERENCES.items()
         }
+
+    def clean_card_text(self, text: str | None) -> str | None:
+        """Strip HTML tags, markdown images/links, URLs, and table rows from card text."""
+        if not text:
+            return None
+
+        # HTML tags
+        text = re.sub(r"<[^>]+>", " ", text)
+        # Markdown images
+        text = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text)
+        # Markdown links
+        text = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", text)
+        # Bare URLs
+        text = re.sub(r"https?://\S+", "", text)
+        # Markdown table rows
+        text = re.sub(r"\|[^\n]+\|", "", text)
+        # Markdown formatting characters
+        text = re.sub(r"[#*_>{}\[\]]+", " ", text)
+        # Collapse whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return text if text else None
+
+    def set_timezone_utc(self, dt: datetime) -> datetime:
+        """Attach UTC timezone if the datetime is naive."""
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    def _find_downloads_at_age(
+        self,
+        prior_snapshots: list[dict],
+        created_at: datetime,
+        min_hours: float,
+        max_hours: float,
+    ) -> int | None:
+        """Find downloads_30d from a snapshot taken within [min_hours, max_hours] after model creation."""
+        for snapshot in prior_snapshots:
+            snap_time = self.set_timezone_utc(datetime.fromisoformat(snapshot["snapshot_date"]))
+            hours_since_creation = (snap_time - created_at).total_seconds() / 3600
+
+            if min_hours <= hours_since_creation <= max_hours:
+                return snapshot.get("downloads_30d")
+
+        return None
 
     def compute_semantic_relevance(self, card_embedding: np.ndarray | None) -> dict[str, float]:
         """Compute cosine similarity of a card embedding against each topic vector.
@@ -115,8 +116,8 @@ class FeatureComputer:
         if created_at is None:
             return None
 
-        now = set_timezone_utc(datetime.fromisoformat(snapshot_date))
-        created_at = set_timezone_utc(created_at)
+        now = self.set_timezone_utc(datetime.fromisoformat(snapshot_date))
+        created_at = self.set_timezone_utc(created_at)
         return (now - created_at).total_seconds() / 3600
 
     def compute_download_velocity(
@@ -132,13 +133,13 @@ class FeatureComputer:
         if not created_at or not prior_snapshots:
             return {"download_velocity_24h": None, "download_velocity_72h": None}
 
-        created_at = set_timezone_utc(created_at)
+        created_at = self.set_timezone_utc(created_at)
 
         return {
-            "download_velocity_24h": _find_downloads_at_age(
+            "download_velocity_24h": self._find_downloads_at_age(
                 prior_snapshots, created_at, min_hours=20, max_hours=28
             ),
-            "download_velocity_72h": _find_downloads_at_age(
+            "download_velocity_72h": self._find_downloads_at_age(
                 prior_snapshots, created_at, min_hours=68, max_hours=76
             ),
         }
@@ -166,7 +167,7 @@ class FeatureComputer:
         Returns:
             Flat dict with all features, ready for the feature store.
         """
-        cleaned_text = clean_card_text(model.get("card_text"))
+        cleaned_text = self.clean_card_text(model.get("card_text"))
 
         card_embedding = None
         if cleaned_text:
@@ -197,7 +198,7 @@ class FeatureComputer:
         """Compute features for multiple models with batched encoding.
 
         Args:
-            models: List of model dicts as returned by ingest.
+            models: List of model dicts.
             prior_snapshots: Previous daily snapshots for velocity computation.
             batch_size: Batch size for sentence-transformer encoding.
 
@@ -205,9 +206,9 @@ class FeatureComputer:
             List of flat feature dicts.
         """
         # Clean all card texts
-        cleaned_texts = [clean_card_text(m.get("card_text")) for m in models]
+        cleaned_texts = [self.clean_card_text(m.get("card_text")) for m in models]
 
-        # Batch-encode non-None texts
+        # Batch-encode texts
         texts_to_encode = [t.lower() for t in cleaned_texts if t]
         encodable_indices = [i for i, t in enumerate(cleaned_texts) if t]
 
@@ -243,7 +244,7 @@ class FeatureComputer:
 # For test purposes only
 if __name__ == "__main__":
     computer = FeatureComputer()
-    models = fetch_models(limit=1)
+    models = fetch_models(since_days=1)[:1]
 
     for m in models:
         features = computer.compute_features(m)
