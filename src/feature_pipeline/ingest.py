@@ -8,7 +8,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, ModelCard
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+_env_file = Path(__file__).resolve().parents[2] / ".env"
+if _env_file.exists():
+    load_dotenv(_env_file)
 
 logger = logging.getLogger(__name__)
 
