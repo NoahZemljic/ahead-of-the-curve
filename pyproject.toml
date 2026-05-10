@@ -15,6 +15,7 @@ feature = [
     "hopsworks>=4.8.1",
     "huggingface-hub>=1.12.0",
     "sentence-transformers>=5.4.1",
+    "torch>=2.0.0",
     "tqdm>=4.67.3",
 ]
 training = [
@@ -28,3 +29,11 @@ inference = [
 dev = [
     "ipykernel>=7.2.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
