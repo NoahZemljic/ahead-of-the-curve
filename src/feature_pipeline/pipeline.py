@@ -5,7 +5,7 @@ import pandas as pd
 
 from compute_features import FeatureComputer
 from compute_labels import Labeller
-from feature_pipeline.hopsworks_store import HopsworksStore
+from hopsworks_store import HopsworksStore
 from ingest import fetch_models, fetch_models_by_id
 
 logger = logging.getLogger(__name__)
