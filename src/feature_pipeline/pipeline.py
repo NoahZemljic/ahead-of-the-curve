@@ -5,7 +5,7 @@ import pandas as pd
 
 from compute_features import FeatureComputer
 from compute_labels import Labeller
-from hopsworks_store import HopsworksStore
+from feature_pipeline.hopsworks_store import HopsworksStore
 from ingest import fetch_models, fetch_models_by_id
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,8 @@ class FeaturePipeline:
         if df.empty:
             logger.warning("No models passed relevance filter, exiting")
             return df
+
+        df = df.drop(columns=["best_topic_score"])
 
         logger.info("Attaching labels to mature models")
         df = self._labeller.compute_labels(df)

@@ -54,6 +54,8 @@ class Backfill:
             logger.warning("No models passed relevance filter, exiting")
             return df
 
+        df = df.drop(columns=["best_topic_score"])
+
         df = self._labeller.compute_labels(df)
 
         logger.info(f"Backfill complete: {len(df)} models, {df['top_quartile'].notna().sum()} with labels")

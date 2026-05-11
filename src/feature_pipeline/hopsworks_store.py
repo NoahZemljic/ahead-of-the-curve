@@ -1,36 +1,25 @@
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 
-import hopsworks
 import pandas as pd
 from dotenv import load_dotenv
+
+from common.hopsworks_client import HopsworksFeatureStoreClient
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
-class HopsworksStore:
+class HopsworksStore(HopsworksFeatureStoreClient):
     """Wrapper around Hopsworks feature store for upserting model feature data.
 
     Handles connection management, DataFrame type coercion, and feature group
     creation. Shared by both the daily pipeline and the backfill manager.
     """
 
-    FEATURE_GROUP_NAME = "frontier_models_features"
-    FEATURE_GROUP_VERSION = 1
-
     def __init__(self):
-        self._fs = None
-
-    def _get_feature_store(self):
-        """Connect to Hopsworks and return the feature store handle (cached)."""
-        if self._fs is None:
-            api_key = os.getenv("HOPSWORKS_API_KEY")
-            project = hopsworks.login(api_key_value=api_key)
-            self._fs = project.get_feature_store()
-        return self._fs
+        super().__init__()
 
     def _prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Coerce column types for Hopsworks compatibility."""
@@ -66,7 +55,7 @@ class HopsworksStore:
         Used to identify models that still need velocity snapshots even if
         they no longer appear in the daily fetch_models() results.
         """
-        fs = self._get_feature_store()
+        fs = self.get_feature_store()
 
         try:
             fg = fs.get_feature_group(
@@ -95,7 +84,7 @@ class HopsworksStore:
         if not model_ids:
             return {}
 
-        fs = self._get_feature_store()
+        fs = self.get_feature_store()
 
         try:
             fg = fs.get_feature_group(
@@ -139,7 +128,7 @@ class HopsworksStore:
             return
 
         df = self._prepare_dataframe(df)
-        fs = self._get_feature_store()
+        fs = self.get_feature_store()
 
         fg = fs.get_or_create_feature_group(
             name=self.FEATURE_GROUP_NAME,

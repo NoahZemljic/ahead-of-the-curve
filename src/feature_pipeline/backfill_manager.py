@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 
 from backfill_logic import Backfill
-from hopsworks_store import HopsworksStore
+from feature_pipeline.hopsworks_store import HopsworksStore
 
 logger = logging.getLogger(__name__)
 
