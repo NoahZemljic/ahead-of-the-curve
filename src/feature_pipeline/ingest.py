@@ -33,7 +33,7 @@ class HFIngestor:
             {"pipeline_tag": "text-generation", "limit": 5000},
         ]
         self.DAILY_FETCH_LIMIT = 4000
-        self._BACKOFF_SCHEDULE = (1, 5, 10, 30, 60, 300)  # seconds
+        self._BACKOFF_SCHEDULE = (1, 5, 10, 30, 60, 300)
 
     def _model_to_dict(self, model, snapshot_date: str, card_text: str | None = None) -> dict:
         """Convert an HF ModelInfo object to a flat dict with card text."""
