@@ -15,7 +15,8 @@ class HFIngestor:
     """Fetch model metadata and card texts from the Hugging Face Hub."""
 
     def __init__(self):
-        self.HF_TOKEN = os.getenv("HF_TOKEN")
+        """Initialize Hugging Face API settings, fetch limits, and retry policy."""
+        self.hf_token = os.getenv("HF_TOKEN")
         self.EXPAND_FIELDS = [
             "cardData",
             "downloads",
@@ -33,9 +34,9 @@ class HFIngestor:
             {"pipeline_tag": "text-generation", "limit": 5000},
         ]
         self.DAILY_FETCH_LIMIT = 4000
-        self._BACKOFF_SCHEDULE = (1, 5, 10, 30, 60, 300)
+        self.BACKOFF_SCHEDULE = (1, 5, 10, 30, 60, 300)
 
-    def _model_to_dict(self, model, snapshot_date: str, card_text: str | None = None) -> dict:
+    def model_to_dict(self, model, snapshot_date: str, card_text: str | None = None) -> dict:
         """Convert an HF ModelInfo object to a flat dict with card text."""
         return {
             "model_id": model.id,
@@ -58,7 +59,7 @@ class HFIngestor:
         Models are sorted by creation date and only those created within
         the given window are returned.
         """
-        api = HfApi(token=self.HF_TOKEN)
+        api = HfApi(token=self.hf_token)
         snapshot_date = datetime.now(timezone.utc).date().isoformat()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
 
@@ -72,8 +73,8 @@ class HFIngestor:
                 break
             models.append(model)
 
-        card_texts = self._fetch_card_texts_parallel([m.id for m in models])
-        results = [self._model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
+        card_texts = self.fetch_card_texts_parallel([m.id for m in models])
+        results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
         logger.info(f"Fetched {len(results)} models modified in the last {since_days} day(s)")
         return results
@@ -84,7 +85,7 @@ class HFIngestor:
         Queries each top separately, combines results, deduplicates, and filters to models
         created within the given time window.
         """
-        api = HfApi(token=self.HF_TOKEN)
+        api = HfApi(token=self.hf_token)
         snapshot_date = datetime.now(timezone.utc).date().isoformat()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
 
@@ -108,8 +109,8 @@ class HFIngestor:
 
         all_models = [m for m in all_models if m.created_at and m.created_at >= cutoff_date]
 
-        card_texts = self._fetch_card_texts_parallel([m.id for m in all_models])
-        results = [self._model_to_dict(m, snapshot_date, card_texts[m.id]) for m in all_models]
+        card_texts = self.fetch_card_texts_parallel([m.id for m in all_models])
+        results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in all_models]
 
         logger.info(f"Backfill: {len(results)} models across {len(self.BACKFILL_TOPICS)} topics (last {since_days} days)")
         return results
@@ -120,7 +121,7 @@ class HFIngestor:
         Used to re-snapshot young models for velocity tracking, even when they
         don't appear in the daily fetch_models() results.
         """
-        api = HfApi(token=self.HF_TOKEN)
+        api = HfApi(token=self.hf_token)
         snapshot_date = datetime.now(timezone.utc).date().isoformat()
 
         models = []
@@ -131,33 +132,33 @@ class HFIngestor:
             except Exception as e:
                 logger.warning(f"Failed to fetch model info for {model_id}: {e}")
 
-        card_texts = self._fetch_card_texts_parallel([m.id for m in models])
-        results = [self._model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
+        card_texts = self.fetch_card_texts_parallel([m.id for m in models])
+        results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
         logger.info(f"Re-fetched {len(results)} models by ID for velocity tracking")
         return results
 
-    def _fetch_card_texts_parallel(self, model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
+    def fetch_card_texts_parallel(self, model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
         """Fetch model card texts in parallel using a thread pool."""
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(self._fetch_card_text, model_id): model_id for model_id in model_ids}
+            futures = {executor.submit(self.fetch_card_text, model_id): model_id for model_id in model_ids}
             for future in as_completed(futures):
                 mid = futures[future]
                 results[mid] = future.result()
         return results
 
-    def _fetch_card_text(self, model_id: str, max_retries: int | None = None) -> str | None:
+    def fetch_card_text(self, model_id: str, max_retries: int | None = None) -> str | None:
         """Fetch the model card README text for a given model, with retry on 429."""
         if max_retries is None:
-            max_retries = len(self._BACKOFF_SCHEDULE)
+            max_retries = len(self.BACKOFF_SCHEDULE)
         for attempt in range(max_retries):
             try:
-                card = ModelCard.load(model_id, token=self.HF_TOKEN)
+                card = ModelCard.load(model_id, token=self.hf_token)
                 return card.text if card.text else None
             except Exception as e:
                 if "429" in str(e) and attempt < max_retries - 1:
-                    wait = self._BACKOFF_SCHEDULE[attempt]
+                    wait = self.BACKOFF_SCHEDULE[attempt]
                     logger.warning(f"Rate limited fetching {model_id}, retrying in {wait}s")
                     time.sleep(wait)
                     continue

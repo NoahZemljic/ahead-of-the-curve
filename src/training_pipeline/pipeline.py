@@ -11,23 +11,25 @@ class TrainingPipeline:
     """End-to-end training pipeline: load, preprocess, train, evaluate."""
 
     def __init__(self):
-        self._data_loader = TrainingDataLoader()
-        self._preprocessor = PreProcessor()
-        self._trainer = Trainer()
+        """Initialize the training pipeline components."""
+        self.data_loader = TrainingDataLoader()
+        self.preprocessor = PreProcessor()
+        self.trainer = Trainer()
 
     def run(self):
+        """Load labelled data, preprocess it, train models, and run evaluation/promotion."""
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
         logger.info("Loading labelled data from Hopsworks")
-        mature_models = self._data_loader.load()
+        mature_models = self.data_loader.load()
         if mature_models.empty:
             logger.warning("No labelled data available, exiting")
             return
 
         logger.info(f"Loaded {len(mature_models)} rows")
-        data = self._preprocessor.process(mature_models)
+        data = self.preprocessor.process(mature_models)
 
-        self._trainer.train(data)
+        self.trainer.train(data)
         logger.info("Training pipeline complete")
 
 

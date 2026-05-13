@@ -14,18 +14,19 @@ class TrainingDataLoader(HopsworksFeatureStoreClient):
     """
 
     def __init__(self):
+        """Initialize the shared Hopsworks feature store connection state."""
         super().__init__()
 
     def load(self) -> pd.DataFrame:
+        """Load labelled feature rows from Hopsworks and coerce training column types."""
         fs = self.get_feature_store()
         fg = fs.get_feature_group(
             name=self.FEATURE_GROUP_NAME,
             version=self.FEATURE_GROUP_VERSION,
         )
 
-        df = fg.select_all().read()
-
         # Discard immature models
+        df = fg.select_all().read()
         df = df.dropna(subset=["download_growth_30d", "top_quartile"])
 
         if df.empty:

@@ -22,11 +22,12 @@ class Backfill:
     """
 
     def __init__(self):
+        """Initialize backfill settings and feature computation collaborators."""
         self.BACKFILL_DAYS = 90
         self.RELEVANCE_THRESHOLD = 0.25
-        self._computer = FeatureComputer()
-        self._labeller = Labeller()
-        self._ingestor = HFIngestor()
+        self.computer = FeatureComputer()
+        self.labeller = Labeller()
+        self.ingestor = HFIngestor()
 
     def run(self) -> pd.DataFrame:
         """Execute the full backfill pipeline: fetch > compute features > filter > label."""
@@ -35,14 +36,14 @@ class Backfill:
         logger.info(f"Starting backfill for the last {self.BACKFILL_DAYS} days")
 
         # Fetch models from the last 90 days
-        backfill_models = self._ingestor.fetch_models_backfill(since_days=self.BACKFILL_DAYS)
+        backfill_models = self.ingestor.fetch_models_backfill(since_days=self.BACKFILL_DAYS)
         if not backfill_models:
             logger.warning("No models found, exiting")
             return pd.DataFrame()
 
         # Compute features in batches of 64
         logger.info(f"Computing features for {len(backfill_models)} models (batch_size=64)")
-        feature_rows = self._computer.compute_features_batch(backfill_models, batch_size=64)
+        feature_rows = self.computer.compute_features_batch(backfill_models, batch_size=64)
         df = pd.DataFrame(feature_rows)
 
         # Discard models with a relevance threshold below 0.25
@@ -56,7 +57,7 @@ class Backfill:
 
         df = df.drop(columns=["best_topic_score"])
 
-        df = self._labeller.compute_labels(df)
+        df = self.labeller.compute_labels(df)
 
         logger.info(f"Backfill complete: {len(df)} models, {df['top_quartile'].notna().sum()} with labels")
 

@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureComputer:
+    """Compute semantic, temporal, velocity, and metadata features for models."""
+
     def __init__(self):
+        """Initialize topic reference embeddings and the sentence-transformer encoder."""
         self.TOPIC_REFERENCES = {
             "robotics": (
                 "vla, vision language action model, general-purpose robot manipulation, general "
@@ -28,9 +31,9 @@ class FeatureComputer:
                 "multimodal"
             ),
         }
-        self._encoder = SentenceTransformer("all-MiniLM-L6-v2")
-        self._topic_embeddings = {
-            topic: self._encoder.encode(text, normalize_embeddings=True)
+        self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.topic_embeddings = {
+            topic: self.encoder.encode(text, normalize_embeddings=True)
             for topic, text in self.TOPIC_REFERENCES.items()
         }
 
@@ -62,7 +65,7 @@ class FeatureComputer:
             return dt.replace(tzinfo=timezone.utc)
         return dt
 
-    def _find_downloads_at_age(
+    def find_downloads_at_age(
         self,
         prior_snapshots: list[dict],
         created_at: datetime,
@@ -80,12 +83,7 @@ class FeatureComputer:
         return None
 
     def compute_semantic_relevance(self, card_embedding: np.ndarray | None) -> dict[str, float]:
-        """Compute cosine similarity of a card embedding against each topic vector.
-
-        Topics: robotics, small language models (SLMs), multimodal reasoning.
-
-        Returns a dict with one score per topic plus the best-matching topic name.
-        """
+        """Compute topic relevance scores and the best-matching frontier topic."""
         if card_embedding is None:
             return {
                 "relevance_robotics": 0.0,
@@ -97,7 +95,7 @@ class FeatureComputer:
 
         scores = {
             topic: float(np.dot(card_embedding, topic_emb))
-            for topic, topic_emb in self._topic_embeddings.items()
+            for topic, topic_emb in self.topic_embeddings.items()
         }
 
         best_topic = max(scores, key=scores.get)
@@ -137,10 +135,10 @@ class FeatureComputer:
         created_at = self.set_timezone_utc(created_at)
 
         return {
-            "download_velocity_24h": self._find_downloads_at_age(
+            "download_velocity_24h": self.find_downloads_at_age(
                 prior_snapshots, created_at, min_hours=20, max_hours=28
             ),
-            "download_velocity_72h": self._find_downloads_at_age(
+            "download_velocity_72h": self.find_downloads_at_age(
                 prior_snapshots, created_at, min_hours=68, max_hours=76
             ),
         }
@@ -164,17 +162,7 @@ class FeatureComputer:
         prior_snapshots: dict[str, list[dict]] | None = None,
         batch_size: int = 64,
     ) -> list[dict]:
-        """Compute features for multiple models with batched encoding.
-
-        Args:
-            models: List of model dicts.
-            prior_snapshots: Dict mapping model_id to its prior snapshot records
-                for download velocity computation within the first 24 / 72 hours.
-            batch_size: Batch size for sentence-transformer encoding.
-
-        Returns:
-            List of flat feature dicts.
-        """
+        """Compute feature rows for multiple models with batched text encoding."""
         # Clean all card texts
         cleaned_texts = [self.clean_card_text(m.get("card_text")) for m in models]
 
@@ -184,7 +172,7 @@ class FeatureComputer:
 
         embeddings = {}
         if texts_to_encode:
-            encoded = self._encoder.encode(
+            encoded = self.encoder.encode(
                 texts_to_encode, normalize_embeddings=True, batch_size=batch_size
             )
             for idx, emb in zip(encodable_indices, encoded):

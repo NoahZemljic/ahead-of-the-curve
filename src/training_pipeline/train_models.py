@@ -26,13 +26,7 @@ class Trainer:
     """Train XGBoost regression and classification models with GridSearchCV and Pipeline."""
 
     def __init__(self, test_size: float = 0.15, val_size: float = 0.15, random_state: int = 42):
-        """Initialize training, evaluation, MLflow, and model registry settings.
-
-        Args:
-            test_size: Fraction of rows reserved for final model evaluation.
-            val_size: Fraction of rows added back into the final training fit after tuning.
-            random_state: Seed used for reproducible train/validation/test splits.
-        """
+        """Initialize training, evaluation, MLflow, and model registry settings."""
         self.REGRESSION_MODEL_NAME = "regressor"
         self.CLASSIFICATION_MODEL_NAME = "classifier"
         self.REGRESSOR_REGISTRY_NAME = "champion-regressor"
@@ -42,7 +36,7 @@ class Trainer:
         self.CHAMPION_ALIAS = "champion"
         self.PROMOTION_THRESHOLD = 0.01
         self.N_FOLDS = 10
-        self.params = {
+        self.PARAM_GRID = {
             "model__max_depth": [4, 6],
             "model__learning_rate": [0.05, 0.1],
             "model__n_estimators": [100, 200],
@@ -69,8 +63,6 @@ class Trainer:
 
         dagshub.init(url=repo_url, root=os.getcwd(), mlflow=True)
 
-        # dagshub.init configures the tracking URI; the registry URI is set explicitly
-        # because this pipeline registers and promotes models after logging them.
         mlflow.set_registry_uri(os.environ["MLFLOW_TRACKING_URI"])
 
     def build_pipeline(self, model_type, numeric_cols):
@@ -112,7 +104,7 @@ class Trainer:
         # Tune parameters only on the training split
         grid_search = GridSearchCV(
             pipeline,
-            self.params,
+            self.PARAM_GRID,
             cv=self.N_FOLDS,
             scoring=scoring_metric,
             n_jobs=-1,

@@ -22,9 +22,11 @@ class Labeller:
     """
 
     def __init__(self):
+        """Initialize the minimum model age required before labels are computed."""
         self.LABEL_MATURITY_DAYS = 30
 
     def compute_labels(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Attach download-growth and top-quartile labels to mature models."""
         now = datetime.now(timezone.utc)
 
         df["download_growth_30d"] = None

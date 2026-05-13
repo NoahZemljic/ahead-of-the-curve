@@ -19,9 +19,10 @@ class HopsworksStore(HopsworksFeatureStoreClient):
     """
 
     def __init__(self):
+        """Initialize the shared Hopsworks feature store connection state."""
         super().__init__()
 
-    def _prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+    def prepare_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Coerce column types for Hopsworks compatibility."""
         df = df.copy()
 
@@ -76,11 +77,7 @@ class HopsworksStore(HopsworksFeatureStoreClient):
         return df["model_id"].unique().tolist()
 
     def fetch_prior_snapshots(self, model_ids: list[str]) -> dict[str, list[dict]]:
-        """Fetch prior snapshots from the feature store for velocity computation.
-
-        Returns a dict mapping model_id to its list of prior snapshot records,
-        each containing snapshot_date (ISO string) and downloads_30d.
-        """
+        """Fetch prior snapshots from the feature store for velocity computation."""
         if not model_ids:
             return {}
 
@@ -127,7 +124,7 @@ class HopsworksStore(HopsworksFeatureStoreClient):
             logger.warning("Empty DataFrame, nothing to upsert")
             return
 
-        df = self._prepare_dataframe(df)
+        df = self.prepare_dataframe(df)
         fs = self.get_feature_store()
 
         fg = fs.get_or_create_feature_group(

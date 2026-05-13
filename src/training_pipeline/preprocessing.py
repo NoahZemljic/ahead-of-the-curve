@@ -13,6 +13,7 @@ class PreProcessor:
     """
 
     def __init__(self):
+        """Initialize feature lists and encoders used during preprocessing."""
         self.NUMERIC_FEATURES = [
             "relevance_robotics",
             "relevance_slm",
@@ -39,10 +40,7 @@ class PreProcessor:
         return pd.DataFrame(encoded, columns=topic_feature_names, index=topic_series.index)
 
     def process(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-        """Clean, encode, and impute a raw feature-store DataFrame.
-
-        Returns a dict with keys: df, numeric_cols.
-        """
+        """Clean, encode, and impute a raw feature-store DataFrame for training."""
         df = df.copy()
 
         drop_cols = [

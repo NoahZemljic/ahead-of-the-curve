@@ -21,29 +21,20 @@ class FeaturePipeline:
     """
 
     def __init__(self):
+        """Initialize feature pipeline collaborators and relevance filtering settings."""
         self.RELEVANCE_THRESHOLD = 0.25
-        self._computer = FeatureComputer()
-        self._labeller = Labeller()
-        self._store = HopsworksStore()
-        self._ingestor = HFIngestor()
+        self.computer = FeatureComputer()
+        self.labeller = Labeller()
+        self.store = HopsworksStore()
+        self.ingestor = HFIngestor()
 
     def run(self) -> pd.DataFrame:
-        """Executes the daily feature pipeline:
-                1. Fetches new daily models
-                2. Re-fetches models created within the past 72 hours to compute
-                   download velocity
-                3. Computes features
-                4. Filters out irrelevant models scoring below 0.25
-                   on a frontier topic
-                5. Computes labels (top quartile and no of download withing 30 days)
-                   for mature models
-                6. Upserts data to Hopsworks
-        """
+        """Execute the daily feature pipeline and upsert labelled feature rows."""
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
         # Fetch new daily models
         logger.info("Fetching recently modified models from Hugging Face Hub")
-        models = self._ingestor.fetch_models()
+        models = self.ingestor.fetch_models()
         if not models:
             logger.warning("No models found, exiting")
             return pd.DataFrame()
@@ -51,12 +42,12 @@ class FeaturePipeline:
 
         # Re-fetch young models
         new_model_ids = {model["model_id"] for model in models}
-        young_stored_ids = self._store.fetch_young_model_ids()
+        young_stored_ids = self.store.fetch_young_model_ids()
         refresh_ids = [model_id for model_id in young_stored_ids if model_id not in new_model_ids]
 
         if refresh_ids:
             logger.info(f"Re-fetching {len(refresh_ids)} young models for velocity tracking")
-            models.extend(self._ingestor.fetch_models_by_id(refresh_ids))
+            models.extend(self.ingestor.fetch_models_by_id(refresh_ids))
 
         # Fetch prior snapshots for young models to compute download velocity
         cutoff = datetime.now(timezone.utc) - timedelta(hours=76)
@@ -65,10 +56,10 @@ class FeaturePipeline:
         prior_snapshots = {}
         if young_model_ids:
             logger.info(f"Fetching prior snapshots for {len(young_model_ids)} young models")
-            prior_snapshots = self._store.fetch_prior_snapshots(young_model_ids)
+            prior_snapshots = self.store.fetch_prior_snapshots(young_model_ids)
 
         logger.info("Computing features")
-        feature_rows = self._computer.compute_features_batch(models, prior_snapshots=prior_snapshots, batch_size=64)
+        feature_rows = self.computer.compute_features_batch(models, prior_snapshots=prior_snapshots, batch_size=64)
         df = pd.DataFrame(feature_rows)
 
         # Keep only models relevant to frontier topics
@@ -83,10 +74,10 @@ class FeaturePipeline:
         df = df.drop(columns=["best_topic_score"])
 
         logger.info("Attaching labels to mature models")
-        df = self._labeller.compute_labels(df)
+        df = self.labeller.compute_labels(df)
 
         logger.info(f"Pushing {len(df)} rows to Hopsworks")
-        self._store.upsert(df)
+        self.store.upsert(df)
 
         logger.info(f"Daily pipeline complete: {len(df)} models, {df['top_quartile'].notna().sum()} labelled")
         return df
