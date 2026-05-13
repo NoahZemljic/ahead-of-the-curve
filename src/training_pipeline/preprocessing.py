@@ -14,20 +14,19 @@ class PreProcessor:
     scales numeric columns, and splits into train/validation/test sets.
     """
 
-    NUMERIC_FEATURES = [
-        "relevance_robotics",
-        "relevance_slm",
-        "relevance_multimodal",
-        "age_hours",
-        "download_velocity_24h",
-        "download_velocity_72h",
-        "likes",
-        "trending_score",
-        "downloads_30d",
-        "downloads_all_time",
-    ]
-
     def __init__(self, test_size: float = 0.15, val_size: float = 0.15, random_state: int = 42):
+        self.NUMERIC_FEATURES = [
+            "relevance_robotics",
+            "relevance_slm",
+            "relevance_multimodal",
+            "age_hours",
+            "download_velocity_24h",
+            "download_velocity_72h",
+            "likes",
+            "trending_score",
+            "downloads_30d",
+            "downloads_all_time",
+        ]
         self._topic_encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
         self._scaler = StandardScaler()
         self._test_size = test_size

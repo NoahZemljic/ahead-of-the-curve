@@ -4,7 +4,7 @@ import pandas as pd
 
 from compute_features import FeatureComputer
 from compute_labels import Labeller
-from ingest import fetch_models_backfill
+from ingest import HFIngestor
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +21,12 @@ class Backfill:
     labels to models that have matured (>= 30 days old).
     """
 
-    BACKFILL_DAYS = 90
-    RELEVANCE_THRESHOLD = 0.25
-
     def __init__(self):
+        self.BACKFILL_DAYS = 90
+        self.RELEVANCE_THRESHOLD = 0.25
         self._computer = FeatureComputer()
         self._labeller = Labeller()
+        self._ingestor = HFIngestor()
 
     def run(self) -> pd.DataFrame:
         """Execute the full backfill pipeline: fetch > compute features > filter > label."""
@@ -35,7 +35,7 @@ class Backfill:
         logger.info(f"Starting backfill for the last {self.BACKFILL_DAYS} days")
 
         # Fetch models from the last 90 days
-        backfill_models = fetch_models_backfill(since_days=self.BACKFILL_DAYS)
+        backfill_models = self._ingestor.fetch_models_backfill(since_days=self.BACKFILL_DAYS)
         if not backfill_models:
             logger.warning("No models found, exiting")
             return pd.DataFrame()

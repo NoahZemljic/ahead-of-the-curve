@@ -6,7 +6,7 @@ import pandas as pd
 from compute_features import FeatureComputer
 from compute_labels import Labeller
 from hopsworks_store import HopsworksStore
-from ingest import fetch_models, fetch_models_by_id
+from ingest import HFIngestor
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +20,12 @@ class FeaturePipeline:
     to mature models (>= 30 days), and upserts to the Hopsworks feature store.
     """
 
-    RELEVANCE_THRESHOLD = 0.25
-
     def __init__(self):
+        self.RELEVANCE_THRESHOLD = 0.25
         self._computer = FeatureComputer()
         self._labeller = Labeller()
         self._store = HopsworksStore()
+        self._ingestor = HFIngestor()
 
     def run(self) -> pd.DataFrame:
         """Executes the daily feature pipeline:
@@ -43,7 +43,7 @@ class FeaturePipeline:
 
         # Fetch new daily models
         logger.info("Fetching recently modified models from Hugging Face Hub")
-        models = fetch_models()
+        models = self._ingestor.fetch_models()
         if not models:
             logger.warning("No models found, exiting")
             return pd.DataFrame()
@@ -56,7 +56,7 @@ class FeaturePipeline:
 
         if refresh_ids:
             logger.info(f"Re-fetching {len(refresh_ids)} young models for velocity tracking")
-            models.extend(fetch_models_by_id(refresh_ids))
+            models.extend(self._ingestor.fetch_models_by_id(refresh_ids))
 
         # Fetch prior snapshots for young models to compute download velocity
         cutoff = datetime.now(timezone.utc) - timedelta(hours=76)

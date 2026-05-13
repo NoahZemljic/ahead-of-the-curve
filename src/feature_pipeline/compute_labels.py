@@ -21,7 +21,8 @@ class Labeller:
             25 percent of its cohort.
     """
 
-    LABEL_MATURITY_DAYS = 30
+    def __init__(self):
+        self.LABEL_MATURITY_DAYS = 30
 
     def compute_labels(self, df: pd.DataFrame) -> pd.DataFrame:
         now = datetime.now(timezone.utc)

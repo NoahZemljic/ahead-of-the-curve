@@ -16,10 +16,9 @@ class HopsworksFeatureStoreClient:
     pipeline and the training pipeline can reuse it.
     """
 
-    FEATURE_GROUP_NAME = "frontier_models_features"
-    FEATURE_GROUP_VERSION = 2
-
     def __init__(self):
+        self.FEATURE_GROUP_NAME = "frontier_models_features"
+        self.FEATURE_GROUP_VERSION = 2
         self._fs = None
 
     def get_feature_store(self):

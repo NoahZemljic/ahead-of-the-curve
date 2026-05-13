@@ -7,33 +7,31 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-from ingest import fetch_models
-
-TOPIC_REFERENCES = {
-    "robotics": (
-        "vla, vision language action model, general-purpose robot manipulation, general "
-        "embodied ai agent, robotic foundation model for dexterous grasping, "
-        "navigation, and multi-task control in real-world environments," "flow matching, multimodal, robot actions, lerobot"
-    ),
-    "slm": (
-        "small language model optimized for edge deployment and on-device inference, "
-        "lightweight transformer for mobile and embedded systems, efficient llm "
-        "with low latency and minimal memory footprint for real-time applications"
-    ),
-    "multimodal_reasoning": (
-        "multimodal reasoning model that jointly processes text, images, and video "
-        "for complex visual question answering, chain-of-thought reasoning across "
-        "modalities, and structured problem solving with visual understanding,"
-        "multimodal"
-    ),
-}
 
 class FeatureComputer:
     def __init__(self):
+        self.TOPIC_REFERENCES = {
+            "robotics": (
+                "vla, vision language action model, general-purpose robot manipulation, general "
+                "embodied ai agent, robotic foundation model for dexterous grasping, "
+                "navigation, and multi-task control in real-world environments," "flow matching, multimodal, robot actions, lerobot"
+            ),
+            "slm": (
+                "small language model optimized for edge deployment and on-device inference, "
+                "lightweight transformer for mobile and embedded systems, efficient llm "
+                "with low latency and minimal memory footprint for real-time applications"
+            ),
+            "multimodal_reasoning": (
+                "multimodal reasoning model that jointly processes text, images, and video "
+                "for complex visual question answering, chain-of-thought reasoning across "
+                "modalities, and structured problem solving with visual understanding,"
+                "multimodal"
+            ),
+        }
         self._encoder = SentenceTransformer("all-MiniLM-L6-v2")
         self._topic_embeddings = {
             topic: self._encoder.encode(text, normalize_embeddings=True)
-            for topic, text in TOPIC_REFERENCES.items()
+            for topic, text in self.TOPIC_REFERENCES.items()
         }
 
     def clean_card_text(self, text: str | None) -> str | None:
