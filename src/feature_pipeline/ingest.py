@@ -3,12 +3,15 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from typing import Callable, TypeVar
+
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, ModelCard
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 class HFIngestor:
@@ -35,6 +38,29 @@ class HFIngestor:
         ]
         self.DAILY_FETCH_LIMIT = 4000
         self.BACKOFF_SCHEDULE = (1, 5, 10, 30, 60, 300)
+
+    def fetch_with_backoff(
+        self,
+        fetch_fn: Callable[[], T],
+        description: str,
+        max_retries: int | None = None,
+    ) -> T | None:
+        """Run a Hugging Face fetch with retry delays for 429 rate limits."""
+        if max_retries is None:
+            max_retries = len(self.BACKOFF_SCHEDULE)
+
+        for attempt in range(max_retries):
+            try:
+                return fetch_fn()
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries:
+                    wait = self.BACKOFF_SCHEDULE[attempt]
+                    logger.warning(f"Rate limited fetching {description}, retrying in {wait}s")
+                    time.sleep(wait)
+                    continue
+
+                logger.warning(f"Failed to fetch {description}: {e}")
+                return None
 
     def model_to_dict(self, model, snapshot_date: str, card_text: str | None = None) -> dict:
         """Convert an HF ModelInfo object to a flat dict with card text."""
@@ -126,11 +152,12 @@ class HFIngestor:
 
         models = []
         for model_id in model_ids:
-            try:
-                model = api.model_info(model_id, expand=self.EXPAND_FIELDS)
+            model = self.fetch_with_backoff(
+                lambda model_id=model_id: api.model_info(model_id, expand=self.EXPAND_FIELDS),
+                f"model info for {model_id}",
+            )
+            if model:
                 models.append(model)
-            except Exception as e:
-                logger.warning(f"Failed to fetch model info for {model_id}: {e}")
 
         card_texts = self.fetch_card_texts_parallel([m.id for m in models])
         results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
@@ -150,20 +177,12 @@ class HFIngestor:
 
     def fetch_card_text(self, model_id: str, max_retries: int | None = None) -> str | None:
         """Fetch the model card README text for a given model, with retry on 429."""
-        if max_retries is None:
-            max_retries = len(self.BACKOFF_SCHEDULE)
-        for attempt in range(max_retries):
-            try:
-                card = ModelCard.load(model_id, token=self.hf_token)
-                return card.text if card.text else None
-            except Exception as e:
-                if "429" in str(e) and attempt < max_retries - 1:
-                    wait = self.BACKOFF_SCHEDULE[attempt]
-                    logger.warning(f"Rate limited fetching {model_id}, retrying in {wait}s")
-                    time.sleep(wait)
-                    continue
-                logger.warning(f"Failed to fetch model card for {model_id}: {e}")
-                return None
+        card = self.fetch_with_backoff(
+            lambda: ModelCard.load(model_id, token=self.hf_token),
+            f"model card for {model_id}",
+            max_retries=max_retries,
+        )
+        return card.text if card and card.text else None
 
 
 if __name__ == "__main__":
