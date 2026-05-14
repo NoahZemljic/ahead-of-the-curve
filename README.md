@@ -6,19 +6,20 @@ Identifying Frontier Models Before the Crowd Does
 
 ```
 ahead-of-the-curve/
-├── .github/                      # GitHub Actions workflows
-├── src/
-│   ├── feature_pipeline/      # Data ingestion + feature engineering
-│   ├── training_pipeline/     # Model training + evaluation
-│   └── inference_pipeline/    # Prediction serving
+├── .github/                   # GitHub Actions workflows
 ├── dashboard/                 # Gradio app
-├── docker/                    # Dockerfiles + compose
-├── notebooks/                 # EDA / prototyping
+├── docker/                    # Dockerfiles
 ├── documents/                 # Project documentation
-├── pyproject.toml             # Project dependencies
-├── uv.lock                    # Locked dependency versions
+├── notebooks/                 # EDA / prototyping
+├── src/
+│   ├── common/                # Shared pipeline utilities
+│   ├── feature_pipeline/      # Data ingestion + feature engineering
+│   ├── inference_pipeline/    # Prediction serving
+│   └── training_pipeline/     # Model training + evaluation + deployment
 ├── .env.example               # Environment variable template
 ├── .gitignore                 # Git ignore rules
 ├── .python-version            # Python version pin (3.11)
-└── README.md                  # You are reading this
+├── README.md                  # You are reading this
+├── pyproject.toml             # Project dependencies
+└── uv.lock                    # Locked dependency versions
 ```
