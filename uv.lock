@@ -35,7 +35,11 @@ inference = [
     { name = "gradio" },
 ]
 training = [
+    { name = "dagshub" },
+    { name = "hopsworks", extra = ["python"] },
     { name = "mlflow" },
+    { name = "pandas" },
+    { name = "python-dotenv" },
     { name = "scikit-learn" },
     { name = "xgboost" },
 ]
@@ -61,7 +65,11 @@ feature = [
 ]
 inference = [{ name = "gradio", specifier = ">=6.13.0" }]
 training = [
+    { name = "dagshub", specifier = ">=0.7.0" },
+    { name = "hopsworks", extras = ["python"], specifier = ">=4.8.1" },
     { name = "mlflow", specifier = ">=3.11.1" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "xgboost", specifier = ">=3.2.0" },
 ]
