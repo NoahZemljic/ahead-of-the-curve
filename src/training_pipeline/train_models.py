@@ -50,15 +50,13 @@ class Trainer:
         """Configure MLflow to use the DagsHub-hosted tracking server and registry."""
         load_dotenv()
 
-        repo_owner = os.getenv("DAGSHUB_REPO_OWNER", self.DAGSHUB_REPO_OWNER)
+        dagshub_repo_owner = os.getenv("DAGSHUB_REPO_OWNER", self.DAGSHUB_REPO_OWNER)
         repo_name = os.getenv("DAGSHUB_REPO_NAME", self.DAGSHUB_REPO_NAME)
-        repo_url = f"https://dagshub.com/{repo_owner}/{repo_name}"
-        dagshub_token = os.getenv("DAGSHUB_TOKEN")
-        dagshub_username = os.getenv("DAGSHUB_USERNAME", repo_owner)
+        repo_url = f"https://dagshub.com/{dagshub_repo_owner}/{repo_name}"
+        dagshub_token = os.getenv("DAGSHUB_USER_TOKEN")
 
         if dagshub_token:
-            os.environ.setdefault("DAGSHUB_USER_TOKEN", dagshub_token)
-            os.environ.setdefault("MLFLOW_TRACKING_USERNAME", dagshub_username)
+            os.environ.setdefault("MLFLOW_TRACKING_USERNAME", dagshub_repo_owner)
             os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", dagshub_token)
 
         dagshub.init(url=repo_url, root=os.getcwd(), mlflow=True)
