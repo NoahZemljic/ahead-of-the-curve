@@ -1,0 +1,21 @@
+name: Training Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -f docker/training-pipeline/Dockerfile -t training-pipeline .
+
+      - name: Run training pipeline
+        run: |
+          docker run --rm \
+            -e HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }} \
+            -e DAGSHUB_USER_TOKEN=${{ secrets.DAGSHUB_USER_TOKEN }} \
+            -e DAGSHUB_REPO_OWNER=${{ secrets.DAGSHUB_REPO_OWNER }} \
+            training-pipeline
