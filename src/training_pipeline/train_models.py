@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 import mlflow
 import pandas as pd
@@ -131,22 +132,31 @@ class Trainer:
 
         return final_model, scaler
 
-    def evaluate_models(self, regressor, classifier, splits, scaler):
-        """Evaluate both trained models on the test split and log metrics."""
+    def evaluate_regressor(self, regressor, splits, scaler):
+        """Evaluate the regression model on the test split and log regression metrics."""
         X_test_scaled = scaler.transform(splits["X_test"])
 
         reg_preds = regressor.predict(X_test_scaled)
-        clf_preds = classifier.predict(X_test_scaled)
-
         metrics = {
             "test_rmse": root_mean_squared_error(splits["y_reg_test"], reg_preds),
             "test_mae": mean_absolute_error(splits["y_reg_test"], reg_preds),
             "test_r2": r2_score(splits["y_reg_test"], reg_preds),
+        }
+        mlflow.log_metrics(metrics)
+        logger.info(f"Regressor test metrics: {metrics}")
+        return metrics
+
+    def evaluate_classifier(self, classifier, splits, scaler):
+        """Evaluate the classification model on the test split and log classification metrics."""
+        X_test_scaled = scaler.transform(splits["X_test"])
+
+        clf_preds = classifier.predict(X_test_scaled)
+        metrics = {
             "test_accuracy": accuracy_score(splits["y_clf_test"], clf_preds),
             "test_f1": f1_score(splits["y_clf_test"], clf_preds),
         }
         mlflow.log_metrics(metrics)
-        logger.info(f"Test metrics: {metrics}")
+        logger.info(f"Classifier test metrics: {metrics}")
         return metrics
 
     def promote_model(self, model_uri, metrics, model_type):
@@ -235,21 +245,22 @@ class Trainer:
     def train(self, data):
         """Run the full training workflow and promote eligible models."""
         splits = self.split_data(data)
+        run_date = datetime.now().date().isoformat()
 
-        with mlflow.start_run():
-            # Train the regression and classification candidates
+        with mlflow.start_run(run_name=f"{self.REGRESSION_MODEL_NAME}-{run_date}"):
             regressor, reg_scaler = self.cross_validate(splits, model_type="regressor")
-            classifier, _ = self.cross_validate(splits, model_type="classifier")
+            regressor_metrics = self.evaluate_regressor(regressor, splits, reg_scaler)
 
-            metrics = self.evaluate_models(regressor, classifier, splits, reg_scaler)
-
-            # Registerable models must be logged before MLflow model promotion.
             regressor_info = mlflow.xgboost.log_model(
                 regressor, name=self.REGRESSION_MODEL_NAME
             )
+            self.promote_model(regressor_info.model_uri, regressor_metrics, model_type="regressor")
+
+        with mlflow.start_run(run_name=f"{self.CLASSIFICATION_MODEL_NAME}-{run_date}"):
+            classifier, clf_scaler = self.cross_validate(splits, model_type="classifier")
+            classifier_metrics = self.evaluate_classifier(classifier, splits, clf_scaler)
+
             classifier_info = mlflow.xgboost.log_model(
                 classifier, name=self.CLASSIFICATION_MODEL_NAME
             )
-
-            self.promote_model(regressor_info.model_uri, metrics, model_type="regressor")
-            self.promote_model(classifier_info.model_uri, metrics, model_type="classifier")
+            self.promote_model(classifier_info.model_uri, classifier_metrics, model_type="classifier")
