@@ -79,7 +79,7 @@ class HFIngestor:
         }
 
     def fetch_models(self, since_days: int = 1) -> list[dict]:
-        """Fetch the first 3000 created models from the Hugging Face Hub.
+        """Fetch the first DAILY_FETCH_LIMIT created models from the Hugging Face Hub.
 
         Used by the daily pipeline to discover new models across all categories.
         Models are sorted by creation date and only those created within
