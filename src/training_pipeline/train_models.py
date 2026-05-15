@@ -274,8 +274,6 @@ class Trainer:
                 promoted_models.append({
                     "model_type": "regressor",
                     "pipeline": reg_pipeline,
-                    "metrics": regressor_metrics,
-                    "feature_names": feature_names,
                 })
 
         with mlflow.start_run(run_name=f"{self.CLASSIFICATION_MODEL_NAME}-{run_date}"):
@@ -293,8 +291,6 @@ class Trainer:
                 promoted_models.append({
                     "model_type": "classifier",
                     "pipeline": clf_pipeline,
-                    "metrics": classifier_metrics,
-                    "feature_names": feature_names,
                 })
 
         return promoted_models
