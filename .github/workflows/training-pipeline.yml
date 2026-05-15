@@ -2,7 +2,8 @@ name: Training Pipeline
 
 on:
   workflow_dispatch:
-
+  schedule:
+    - cron: "0 2 * * 1"
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -12,10 +13,19 @@ jobs:
       - name: Build image
         run: docker build -f docker/training-pipeline/Dockerfile -t training-pipeline .
 
+      - name: Write GCP credentials
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+
       - name: Run training pipeline
         run: |
           docker run --rm \
             -e HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }} \
             -e DAGSHUB_USER_TOKEN=${{ secrets.DAGSHUB_USER_TOKEN }} \
             -e DAGSHUB_REPO_OWNER=${{ secrets.DAGSHUB_REPO_OWNER }} \
+            -e GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }} \
+            -e GCP_REGION=${{ secrets.GCP_REGION }} \
+            -e GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }} \
+            -e CLOUD_RUN_SERVICE=${{ secrets.CLOUD_RUN_SERVICE }} \
+            -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json \
+            -v /tmp/gcp-key.json:/tmp/gcp-key.json \
             training-pipeline
