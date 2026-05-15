@@ -117,6 +117,11 @@ class Trainer:
         logger.info(f"{model_type} best params: {grid_search.best_params_}")
         logger.info(f"{model_type} best CV score: {grid_search.best_score_:.4f}")
 
+        if model_type == "regressor":
+            mlflow.log_metric("cv_best_rmse", -grid_search.best_score_)
+        else:
+            mlflow.log_metric("cv_best_f1", grid_search.best_score_)
+
         best_params = {k.replace("model__", ""): v for k, v in grid_search.best_params_.items()}
 
         X_train_val = pd.concat([splits["X_train"], splits["X_val"]])
@@ -127,16 +132,11 @@ class Trainer:
         final_pipeline.set_params(**{f"model__{k}": v for k, v in best_params.items()})
         final_pipeline.fit(X_train_val, y_train_val)
 
-        final_model = final_pipeline.named_steps["model"]
-        scaler = final_pipeline.named_steps["scaler"]
+        return final_pipeline
 
-        return final_model, scaler
-
-    def evaluate_regressor(self, regressor, splits, scaler):
+    def evaluate_regressor(self, pipeline, splits):
         """Evaluate the regression model on the test split and log regression metrics."""
-        X_test_scaled = scaler.transform(splits["X_test"])
-
-        reg_preds = regressor.predict(X_test_scaled)
+        reg_preds = pipeline.predict(splits["X_test"])
         metrics = {
             "test_rmse": root_mean_squared_error(splits["y_reg_test"], reg_preds),
             "test_mae": mean_absolute_error(splits["y_reg_test"], reg_preds),
@@ -146,11 +146,9 @@ class Trainer:
         logger.info(f"Regressor test metrics: {metrics}")
         return metrics
 
-    def evaluate_classifier(self, classifier, splits, scaler):
+    def evaluate_classifier(self, pipeline, splits):
         """Evaluate the classification model on the test split and log classification metrics."""
-        X_test_scaled = scaler.transform(splits["X_test"])
-
-        clf_preds = classifier.predict(X_test_scaled)
+        clf_preds = pipeline.predict(splits["X_test"])
         metrics = {
             "test_accuracy": accuracy_score(splits["y_clf_test"], clf_preds),
             "test_f1": f1_score(splits["y_clf_test"], clf_preds),
@@ -200,7 +198,7 @@ class Trainer:
                     f"{model_name}: candidate {metric_name}={candidate_metric:.4f} not better than "
                     f"champion {metric_name}={champion_metric:.4f}, skipping promotion"
                 )
-                return
+                return False
 
         mv = mlflow.register_model(model_uri, model_name)
         client.set_registered_model_alias(model_name, self.CHAMPION_ALIAS, mv.version)
@@ -208,6 +206,7 @@ class Trainer:
             f"{model_name} v{mv.version} promoted to {self.CHAMPION_ALIAS} "
             f"({metric_name}={candidate_metric:.4f})"
         )
+        return True
 
     def split_data(self, data: dict) -> dict:
         """Separate targets from features and split data into train/validation/test sets."""
@@ -243,24 +242,59 @@ class Trainer:
         }
 
     def train(self, data):
-        """Run the full training workflow and promote eligible models."""
+        """Run the full training workflow and promote eligible models.
+
+        Returns a list of dicts describing each promoted model (empty if none promoted).
+        """
         splits = self.split_data(data)
         run_date = datetime.now().date().isoformat()
+        feature_names = list(splits["X_train"].columns)
+        promoted_models = []
+
+        dataset_params = {
+            "dataset_size": len(splits["X_train"]) + len(splits["X_val"]) + len(splits["X_test"]),
+            "n_features": len(feature_names),
+            "train_size": len(splits["X_train"]),
+            "val_size": len(splits["X_val"]),
+            "test_size": len(splits["X_test"]),
+        }
 
         with mlflow.start_run(run_name=f"{self.REGRESSION_MODEL_NAME}-{run_date}"):
-            regressor, reg_scaler = self.cross_validate(splits, model_type="regressor")
-            regressor_metrics = self.evaluate_regressor(regressor, splits, reg_scaler)
+            mlflow.log_params(dataset_params)
+            reg_pipeline = self.cross_validate(splits, model_type="regressor")
+            regressor_metrics = self.evaluate_regressor(reg_pipeline, splits)
 
-            regressor_info = mlflow.xgboost.log_model(
-                regressor, name=self.REGRESSION_MODEL_NAME
+            regressor_info = mlflow.sklearn.log_model(
+                reg_pipeline, name=self.REGRESSION_MODEL_NAME
             )
-            self.promote_model(regressor_info.model_uri, regressor_metrics, model_type="regressor")
+            promoted = self.promote_model(
+                regressor_info.model_uri, regressor_metrics, model_type="regressor"
+            )
+            if promoted:
+                promoted_models.append({
+                    "model_type": "regressor",
+                    "pipeline": reg_pipeline,
+                    "metrics": regressor_metrics,
+                    "feature_names": feature_names,
+                })
 
         with mlflow.start_run(run_name=f"{self.CLASSIFICATION_MODEL_NAME}-{run_date}"):
-            classifier, clf_scaler = self.cross_validate(splits, model_type="classifier")
-            classifier_metrics = self.evaluate_classifier(classifier, splits, clf_scaler)
+            mlflow.log_params(dataset_params)
+            clf_pipeline = self.cross_validate(splits, model_type="classifier")
+            classifier_metrics = self.evaluate_classifier(clf_pipeline, splits)
 
-            classifier_info = mlflow.xgboost.log_model(
-                classifier, name=self.CLASSIFICATION_MODEL_NAME
+            classifier_info = mlflow.sklearn.log_model(
+                clf_pipeline, name=self.CLASSIFICATION_MODEL_NAME
             )
-            self.promote_model(classifier_info.model_uri, classifier_metrics, model_type="classifier")
+            promoted = self.promote_model(
+                classifier_info.model_uri, classifier_metrics, model_type="classifier"
+            )
+            if promoted:
+                promoted_models.append({
+                    "model_type": "classifier",
+                    "pipeline": clf_pipeline,
+                    "metrics": classifier_metrics,
+                    "feature_names": feature_names,
+                })
+
+        return promoted_models
