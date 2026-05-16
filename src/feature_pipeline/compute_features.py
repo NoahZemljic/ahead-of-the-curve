@@ -74,8 +74,8 @@ class FeatureComputer:
     ) -> int | None:
         """Find downloads_30d from a snapshot taken within [min_hours, max_hours] after model creation."""
         for snapshot in prior_snapshots:
-            snap_time = self.set_timezone_utc(datetime.fromisoformat(snapshot["snapshot_date"]))
-            hours_since_creation = (snap_time - created_at).total_seconds() / 3600
+            snapshot_time = self.set_timezone_utc(datetime.fromisoformat(snapshot["snapshot_date"]))
+            hours_since_creation = (snapshot_time - created_at).total_seconds() / 3600
 
             if min_hours <= hours_since_creation <= max_hours:
                 return snapshot.get("downloads_30d")
@@ -83,7 +83,7 @@ class FeatureComputer:
         return None
 
     def compute_semantic_relevance(self, card_embedding: np.ndarray | None) -> dict[str, float]:
-        """Compute topic relevance scores and the best-matching frontier topic."""
+        """Compute topic relevance scores and the best-matching frontier topic using cosine similarity."""
         if card_embedding is None:
             return {
                 "relevance_robotics": 0.0,
@@ -93,6 +93,7 @@ class FeatureComputer:
                 "best_topic_score": 0.0,
             }
 
+        # Compute cosine similarity
         scores = {
             topic: float(np.dot(card_embedding, topic_emb))
             for topic, topic_emb in self.topic_embeddings.items()
@@ -108,7 +109,7 @@ class FeatureComputer:
             "best_topic_score": scores[best_topic],
         }
 
-    def compute_age_hours(
+    def compute_model_age(
         self, created_at: datetime | None, snapshot_date: str
     ) -> float | None:
         """Compute the age of a model in hours at the time of the snapshot."""
@@ -163,13 +164,12 @@ class FeatureComputer:
         batch_size: int = 64,
     ) -> list[dict]:
         """Compute feature rows for multiple models with batched text encoding."""
-        # Clean all card texts
-        cleaned_texts = [self.clean_card_text(m.get("card_text")) for m in models]
+        # Clean all card texts and prepare for encoding
+        cleaned_texts = [self.clean_card_text(model.get("card_text")) for model in models]
+        texts_to_encode = [text.lower() for text in cleaned_texts if text]
+        encodable_indices = [i for i, text in enumerate(cleaned_texts) if text]
 
         # Batch-encode texts
-        texts_to_encode = [t.lower() for t in cleaned_texts if t]
-        encodable_indices = [i for i, t in enumerate(cleaned_texts) if t]
-
         embeddings = {}
         if texts_to_encode:
             encoded = self.encoder.encode(
@@ -178,12 +178,12 @@ class FeatureComputer:
             for idx, emb in zip(encodable_indices, encoded):
                 embeddings[idx] = emb
 
-        # Assemble features using precomputed embeddings
+        # Assemble features
         results = []
         for i, model in enumerate(models):
             card_embedding = embeddings.get(i)
             semantic_relevance = self.compute_semantic_relevance(card_embedding)
-            age_hours = self.compute_age_hours(model["created_at"], model["snapshot_date"])
+            age_hours = self.compute_model_age(model["created_at"], model["snapshot_date"])
             model_snapshots = prior_snapshots.get(model["model_id"]) if prior_snapshots else None
             velocity = self.compute_download_velocity(model["created_at"], model_snapshots)
             metadata = self.compute_metadata_features(model)

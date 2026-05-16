@@ -9,7 +9,6 @@ from ingest import HFIngestor
 
 logger = logging.getLogger(__name__)
 
-
 class FeaturePipeline:
     """Daily feature pipeline: fetch, score, filter, label, push to Hopsworks.
 
@@ -106,7 +105,6 @@ class FeaturePipeline:
         labelled = all_processed_models["top_quartile"].notna().sum()
         logger.info(f"Daily pipeline complete: {len(all_processed_models)} models, {labelled} labelled")
         return all_processed_models
-
 
 if __name__ == "__main__":
     FeaturePipeline().run()
