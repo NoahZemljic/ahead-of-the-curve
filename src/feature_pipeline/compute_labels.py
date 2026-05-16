@@ -27,7 +27,7 @@ class Labeller:
 
     def compute_labels(self, df: pd.DataFrame) -> pd.DataFrame:
         """Attach download-growth and top-quartile labels to mature models."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         df["download_growth_30d"] = None
         df["top_quartile"] = None
