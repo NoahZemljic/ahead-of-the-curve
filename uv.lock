@@ -16,6 +16,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "python-dotenv" },
+    { name = "sentence-transformers" },
     { name = "xgboost" },
 ]
 
@@ -32,7 +33,27 @@ feature = [
     { name = "tqdm" },
 ]
 inference = [
+    { name = "fastapi" },
+    { name = "google-cloud-storage" },
     { name = "gradio" },
+    { name = "pandas" },
+    { name = "python-dotenv" },
+    { name = "scikit-learn" },
+    { name = "uvicorn" },
+    { name = "xgboost" },
+]
+inference-worker = [
+    { name = "google-cloud-storage" },
+    { name = "hopsworks", extra = ["python"] },
+    { name = "huggingface-hub" },
+    { name = "pandas" },
+    { name = "python-dotenv" },
+    { name = "scikit-learn" },
+    { name = "sentence-transformers" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "tqdm" },
+    { name = "xgboost" },
 ]
 training = [
     { name = "dagshub" },
@@ -53,6 +74,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "sentence-transformers", specifier = ">=5.4.1" },
     { name = "xgboost", specifier = ">=3.2.0" },
 ]
 
@@ -65,7 +87,28 @@ feature = [
     { name = "torch", specifier = ">=2.0.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
-inference = [{ name = "gradio", specifier = ">=6.13.0" }]
+inference = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "google-cloud-storage", specifier = ">=2.0.0" },
+    { name = "gradio", specifier = ">=6.13.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "uvicorn", specifier = ">=0.30.0" },
+    { name = "xgboost", specifier = ">=3.2.0" },
+]
+inference-worker = [
+    { name = "google-cloud-storage", specifier = ">=2.0.0" },
+    { name = "hopsworks", extras = ["python"], specifier = ">=4.8.1" },
+    { name = "huggingface-hub", specifier = ">=1.12.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "sentence-transformers", specifier = ">=5.4.1" },
+    { name = "torch", specifier = ">=2.0.0", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "tqdm", specifier = ">=4.67.3" },
+    { name = "xgboost", specifier = ">=3.2.0" },
+]
 training = [
     { name = "dagshub", specifier = ">=0.7.0" },
     { name = "google-cloud-run", specifier = ">=0.10.0" },

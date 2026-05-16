@@ -181,6 +181,30 @@ class HFIngestor:
                 results[model_id] = future.result()
         return results
 
+    def fetch_recent_models(self, hours: int = 70) -> list[dict]:
+        """Fetch models created within the last `hours` hours, newest first.
+
+        Used by the inference pipeline to discover models uploaded since the
+        previous hourly run without fetching the entire daily batch.
+        """
+        api = HfApi(token=self.hf_token)
+        snapshot_date = datetime.now(timezone.utc).isoformat()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        models = []
+        for model in api.list_models(
+            sort="created_at",
+            expand=self.EXPAND_FIELDS,
+        ):
+            if not model.created_at or model.created_at < cutoff:
+                break
+            models.append(model)
+
+        card_texts = self.fetch_card_texts_parallel([m.id for m in models])
+        results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
+        logger.info(f"Fetched {len(results)} models created in the last {hours} hours")
+        return results
+
     def fetch_card_text(self, model_id: str, max_retries: int | None = None) -> str | None:
         """Fetch the model card README text for a given model, with retry on 429."""
         card = self.fetch_with_backoff(

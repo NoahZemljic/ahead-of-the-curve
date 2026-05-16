@@ -1,0 +1,43 @@
+name: Deploy Inference Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/inference_pipeline/**
+      - docker/inference-pipeline/**
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Write GCP credentials
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+
+      - name: Authenticate gcloud
+        run: gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+
+      - name: Authenticate Docker to Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-pipeline:${{ github.sha }}
+        run: |
+          docker build -f docker/inference-pipeline/Dockerfile -t $IMAGE .
+          docker push $IMAGE
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-pipeline:${{ github.sha }}
+        run: |
+          gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE }} \
+            --image=$IMAGE \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --set-env-vars=GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }} \
+            --allow-unauthenticated \
+            --platform=managed

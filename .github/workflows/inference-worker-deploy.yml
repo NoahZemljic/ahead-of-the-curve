@@ -1,0 +1,69 @@
+name: Deploy Inference Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/inference_pipeline/pipeline.py
+      - src/inference_pipeline/hopsworks_store.py
+      - src/feature_pipeline/ingest.py
+      - src/feature_pipeline/compute_features.py
+      - docker/inference-worker/**
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Write GCP credentials
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+
+      - name: Authenticate gcloud
+        run: gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+
+      - name: Authenticate Docker to Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-worker:${{ github.sha }}
+        run: |
+          docker build -f docker/inference-worker/Dockerfile -t $IMAGE .
+          docker push $IMAGE
+
+      - name: Deploy Cloud Run Job
+        env:
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-worker:${{ github.sha }}
+          SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+        run: |
+          gcloud run jobs deploy inference-worker \
+            --image=$IMAGE \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --service-account=$SA_EMAIL \
+            --set-env-vars=HF_TOKEN=${{ secrets.HF_TOKEN }},HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }},GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }} \
+            --task-timeout=3600 \
+            --max-retries=1
+
+      - name: Schedule bi-hourly execution
+        env:
+          SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+        run: |
+          JOB_URI="https://run.googleapis.com/v2/projects/${{ secrets.GCP_PROJECT_ID }}/locations/${{ secrets.GCP_REGION }}/jobs/inference-worker:run"
+          gcloud scheduler jobs create http inference-worker-bihourly \
+            --schedule="0 */2 * * *" \
+            --uri="$JOB_URI" \
+            --http-method=POST \
+            --oauth-service-account-email="$SA_EMAIL" \
+            --location=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            2>/dev/null || \
+          gcloud scheduler jobs update http inference-worker-bihourly \
+            --schedule="0 */2 * * *" \
+            --uri="$JOB_URI" \
+            --http-method=POST \
+            --oauth-service-account-email="$SA_EMAIL" \
+            --location=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
