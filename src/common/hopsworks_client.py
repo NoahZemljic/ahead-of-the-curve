@@ -19,7 +19,7 @@ class HopsworksFeatureStoreClient:
     def __init__(self):
         """Initialize feature group metadata and the cached feature-store handle."""
         self.FEATURE_GROUP_NAME = "frontier_models_features"
-        self.FEATURE_GROUP_VERSION = 2
+        self.FEATURE_GROUP_VERSION = 1
         self.feature_store = None
 
     def get_feature_store(self):

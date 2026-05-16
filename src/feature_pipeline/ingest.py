@@ -45,7 +45,7 @@ class HFIngestor:
         description: str,
         max_retries: int | None = None,
     ) -> T | None:
-        """Run a Hugging Face fetch with retry delays for 429 rate limits."""
+        """Run a Hugging Face fetch (model info / card) with retry delays for 429 rate limits."""
         if max_retries is None:
             max_retries = len(self.BACKOFF_SCHEDULE)
 
@@ -99,7 +99,7 @@ class HFIngestor:
                 break
             models.append(model)
 
-        card_texts = self.fetch_card_texts_parallel([m.id for m in models])
+        card_texts = self.fetch_card_texts_parallel([model.id for model in models])
         results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
         logger.info(f"Fetched {len(results)} models modified in the last {since_days} day(s)")
@@ -143,9 +143,6 @@ class HFIngestor:
 
     def fetch_models_by_id(self, model_ids: list[str]) -> list[dict]:
         """Fetch current state of specific models by their IDs.
-
-        Used to re-snapshot young models for velocity tracking, even when they
-        don't appear in the daily fetch_models() results.
         """
         api = HfApi(token=self.hf_token)
         snapshot_date = datetime.now(timezone.utc).date().isoformat()
@@ -162,17 +159,26 @@ class HFIngestor:
         card_texts = self.fetch_card_texts_parallel([m.id for m in models])
         results = [self.model_to_dict(m, snapshot_date, card_texts[m.id]) for m in models]
 
-        logger.info(f"Re-fetched {len(results)} models by ID for velocity tracking")
+        logger.info(f"Re-fetched {len(results)} models by ID.")
         return results
 
-    def fetch_card_texts_parallel(self, model_ids: list[str], max_workers: int = 4) -> dict[str, str | None]:
-        """Fetch model card texts in parallel using a thread pool."""
+    def fetch_card_texts_parallel(
+        self, model_ids: list[str], max_workers: int = 4, request_delay: float = 0.25
+    ) -> dict[str, str | None]:
+        """Fetch model card texts in parallel using a thread pool.
+
+        Submissions are staggered by request_delay seconds to avoid bursting
+        all workers simultaneously and triggering HF Hub rate limits.
+        """
         results = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(self.fetch_card_text, model_id): model_id for model_id in model_ids}
+            futures = {}
+            for model_id in model_ids:
+                futures[executor.submit(self.fetch_card_text, model_id)] = model_id
+                time.sleep(request_delay)
             for future in as_completed(futures):
-                mid = futures[future]
-                results[mid] = future.result()
+                model_id = futures[future]
+                results[model_id] = future.result()
         return results
 
     def fetch_card_text(self, model_id: str, max_retries: int | None = None) -> str | None:

@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -16,8 +15,8 @@ class FeaturePipeline:
 
     Runs once per day at 00:00 UTC. Fetches all recently modified models from
     the Hub (regardless of tag), computes features including semantic relevance
-    against frontier topics, filters to models scoring >= 0.25, attaches labels
-    to mature models (>= 30 days), and upserts to the Hopsworks feature store.
+    against frontier topics, filters to models scoring >= 0.25, fetches mature models, updates mature model download counts, attaches labels
+    to mature models (>= 30 days), and inserts to the Hopsworks feature store.
     """
 
     def __init__(self):
@@ -29,7 +28,7 @@ class FeaturePipeline:
         self.ingestor = HFIngestor()
 
     def run(self) -> pd.DataFrame:
-        """Execute the daily feature pipeline and upsert labelled feature rows."""
+        """Execute the daily feature pipeline and insert labelled feature rows."""
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
         # Fetch new daily models
@@ -40,47 +39,73 @@ class FeaturePipeline:
             return pd.DataFrame()
         logger.info(f"Fetched {len(models)} models")
 
-        # Re-fetch young models
         new_model_ids = {model["model_id"] for model in models}
+
+        # Get models eligible for download velocity computation
         young_stored_ids = self.store.fetch_young_model_ids()
-        refresh_ids = [model_id for model_id in young_stored_ids if model_id not in new_model_ids]
+        ids_to_be_refreshed = [model_id for model_id in young_stored_ids if model_id not in new_model_ids]
 
-        if refresh_ids:
-            logger.info(f"Re-fetching {len(refresh_ids)} young models for velocity tracking")
-            models.extend(self.ingestor.fetch_models_by_id(refresh_ids))
+        if ids_to_be_refreshed:
+            logger.info(f"Re-fetching {len(ids_to_be_refreshed)} young models for velocity tracking")
+            models.extend(self.ingestor.fetch_models_by_id(ids_to_be_refreshed))
 
-        # Fetch prior snapshots for young models to compute download velocity
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=76)
-        young_model_ids = [m["model_id"] for m in models if m["created_at"] and m["created_at"] >= cutoff]
+        young_model_ids = list(young_stored_ids)
 
+        # Fetch prior snapshots for eligible models
         prior_snapshots = {}
         if young_model_ids:
             logger.info(f"Fetching prior snapshots for {len(young_model_ids)} young models")
-            prior_snapshots = self.store.fetch_prior_snapshots(young_model_ids)
+            prior_snapshots = self.store.fetch_prior_model_snapshots(young_model_ids)
 
+        # Compute features in batches
         logger.info("Computing features")
-        feature_rows = self.computer.compute_features_batch(models, prior_snapshots=prior_snapshots, batch_size=64)
-        df = pd.DataFrame(feature_rows)
+        features = self.computer.compute_features_batch(models, prior_snapshots=prior_snapshots, batch_size=64)
+        features_df = pd.DataFrame(features)
 
         # Keep only models relevant to frontier topics
-        before = len(df)
-        df = df[df["best_topic_score"] >= self.RELEVANCE_THRESHOLD].reset_index(drop=True)
-        logger.info(f"Relevance filter: {len(df)} / {before} models above {self.RELEVANCE_THRESHOLD} threshold")
+        before = len(features_df)
+        features_df = features_df[features_df["best_topic_score"] >= self.RELEVANCE_THRESHOLD].reset_index(drop=True)
+        logger.info(f"Relevance filter: {len(features_df)} / {before} models above {self.RELEVANCE_THRESHOLD} threshold")
 
-        if df.empty:
+        if features_df.empty:
             logger.warning("No models passed relevance filter, exiting")
-            return df
+            return features_df
 
-        df = df.drop(columns=["best_topic_score"])
+        # Best score was only needed for relevance filtering
+        features_df = features_df.drop(columns=["best_topic_score"])
 
-        logger.info("Attaching labels to mature models")
-        df = self.labeller.compute_labels(df)
+        # Fetch mature unlabelled models
+        mature_df = self.store.fetch_mature_models()
+        if not mature_df.empty:
+            logger.info(f"Labelling {len(mature_df)} mature unlabelled models")
 
-        logger.info(f"Pushing {len(df)} rows to Hopsworks")
-        self.store.upsert(df)
+            # Get current download counts for mature models
+            current_models = self.ingestor.fetch_models_by_id(mature_df["model_id"].tolist())
 
-        logger.info(f"Daily pipeline complete: {len(df)} models, {df['top_quartile'].notna().sum()} labelled")
-        return df
+            temp = {model["model_id"]: model for model in current_models}
+
+            # Update mature model row with downloads in last 30 days
+            mature_df["downloads_30d"] = mature_df["model_id"].map(
+                {mid: m["downloads_30d"] for mid, m in temp.items()}
+            )
+
+            # Update mature model row with all time downloads
+            mature_df["downloads_all_time"] = mature_df["model_id"].map(
+                {mid: m["downloads_all_time"] for mid, m in temp.items()}
+            )
+
+            # Compute labels for unlabelled mature model
+            mature_df = self.labeller.compute_labels(mature_df)
+
+        # Combine new / young models with mature models and insert to hopsworks
+        all_processed_models = pd.concat([features_df, mature_df], ignore_index=True)
+
+        logger.info(f"Pushing {len(all_processed_models)} rows to Hopsworks")
+        self.store.insert(all_processed_models)
+
+        labelled = all_processed_models["top_quartile"].notna().sum()
+        logger.info(f"Daily pipeline complete: {len(all_processed_models)} models, {labelled} labelled")
+        return all_processed_models
 
 
 if __name__ == "__main__":

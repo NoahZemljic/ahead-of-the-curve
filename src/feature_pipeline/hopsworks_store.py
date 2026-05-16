@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class HopsworksStore(HopsworksFeatureStoreClient):
-    """Wrapper around Hopsworks feature store for upserting model feature data.
+    """Wrapper around Hopsworks feature store for inserting model feature data.
 
     Handles connection management, DataFrame type coercion, and feature group
     creation. Shared by both the daily pipeline and the backfill manager.
@@ -76,7 +76,37 @@ class HopsworksStore(HopsworksFeatureStoreClient):
 
         return df["model_id"].unique().tolist()
 
-    def fetch_prior_snapshots(self, model_ids: list[str]) -> dict[str, list[dict]]:
+    def fetch_mature_models(self, min_age_days: int = 30) -> pd.DataFrame:
+        """Fetch the latest stored feature row for each mature unlabelled model.
+
+        Returns all feature columns so only the download counts need to be
+        refreshed before label computation.
+        """
+        fs = self.get_feature_store()
+
+        try:
+            fg = fs.get_feature_group(
+                name=self.FEATURE_GROUP_NAME,
+                version=self.FEATURE_GROUP_VERSION,
+            )
+        except Exception:
+            return pd.DataFrame()
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=min_age_days)
+        df = fg.select_all().filter(fg.created_at <= cutoff).read()
+
+        if df.empty:
+            return df
+
+        df = df[df["top_quartile"].isna()]
+
+        if df.empty:
+            return df
+
+        df["snapshot_date"] = pd.to_datetime(df["snapshot_date"], utc=True)
+        return df.sort_values("snapshot_date").groupby("model_id").last().reset_index()
+
+    def fetch_prior_model_snapshots(self, model_ids: list[str]) -> dict[str, list[dict]]:
         """Fetch prior snapshots from the feature store for velocity computation."""
         if not model_ids:
             return {}
@@ -114,14 +144,14 @@ class HopsworksStore(HopsworksFeatureStoreClient):
         logger.info(f"Fetched prior snapshots for {len(snapshots)} / {len(model_ids)} models")
         return snapshots
 
-    def upsert(self, df: pd.DataFrame) -> None:
-        """Upsert a DataFrame into the Hopsworks feature group.
+    def insert(self, df: pd.DataFrame) -> None:
+        """Insert a DataFrame into the Hopsworks feature group.
 
         Creates the feature group on first run with primary key (model_id, snapshot_date)
         and an event_time column for time-travel queries.
         """
         if df.empty:
-            logger.warning("Empty DataFrame, nothing to upsert")
+            logger.warning("Empty DataFrame, nothing to insert")
             return
 
         df = self.prepare_dataframe(df)
@@ -136,4 +166,4 @@ class HopsworksStore(HopsworksFeatureStoreClient):
         )
 
         fg.insert(df)
-        logger.info(f"Upserted {len(df)} rows to feature group '{self.FEATURE_GROUP_NAME}'")
+        logger.info(f"Inserted {len(df)} rows to feature group '{self.FEATURE_GROUP_NAME}'")
