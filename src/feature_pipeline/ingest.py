@@ -86,7 +86,7 @@ class HFIngestor:
         the given window are returned.
         """
         api = HfApi(token=self.hf_token)
-        snapshot_date = datetime.now(timezone.utc).date().isoformat()
+        snapshot_date = datetime.now(timezone.utc).isoformat()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
 
         models = []
@@ -112,7 +112,7 @@ class HFIngestor:
         created within the given time window.
         """
         api = HfApi(token=self.hf_token)
-        snapshot_date = datetime.now(timezone.utc).date().isoformat()
+        snapshot_date = datetime.now(timezone.utc).isoformat()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=since_days)
 
         seen_models = set()
@@ -145,7 +145,7 @@ class HFIngestor:
         """Fetch current state of specific models by their IDs.
         """
         api = HfApi(token=self.hf_token)
-        snapshot_date = datetime.now(timezone.utc).date().isoformat()
+        snapshot_date = datetime.now(timezone.utc).isoformat()
 
         models = []
         for model_id in model_ids:
