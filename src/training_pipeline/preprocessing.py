@@ -23,8 +23,6 @@ class PreProcessor:
             "download_velocity_72h",
             "likes",
             "trending_score",
-            "downloads_30d",
-            "downloads_all_time",
         ]
         self.topic_encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
 
@@ -47,6 +45,8 @@ class PreProcessor:
             "model_id",
             "created_at",
             "snapshot_date",
+            "downloads_30d",
+            "downloads_all_time",
         ]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
 

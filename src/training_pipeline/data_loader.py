@@ -25,9 +25,31 @@ class TrainingDataLoader(HopsworksFeatureStoreClient):
             version=self.FEATURE_GROUP_VERSION,
         )
 
-        # Discard immature models
         df = fg.select_all().read()
-        df = df.dropna(subset=["download_growth_30d", "top_quartile"])
+
+        df["snapshot_date"] = pd.to_datetime(df["snapshot_date"], utc=True)
+
+        # Extract labels from mature (labeled) snapshots
+        labeled = df.dropna(subset=["download_growth_30d", "top_quartile"])
+        if labeled.empty:
+            return labeled
+
+        labels = (
+            labeled[["model_id", "download_growth_30d", "top_quartile"]]
+            .drop_duplicates("model_id")
+        )
+
+        # For each labeled model use the earliest snapshot so training sees
+        # birth-state features paired with the eventual mature label.
+        earliest = (
+            df[df["model_id"].isin(labels["model_id"])]
+            .sort_values("snapshot_date")
+            .groupby("model_id", as_index=False)
+            .first()
+            .drop(columns=["download_growth_30d", "top_quartile"], errors="ignore")
+        )
+
+        df = earliest.merge(labels, on="model_id", how="inner")
 
         if df.empty:
             return df

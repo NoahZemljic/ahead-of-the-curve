@@ -36,7 +36,8 @@ class PreProcessor:
         df = df.copy()
 
         drop_cols = ["model_id", "created_at", "snapshot_date",
-                     "best_topic_score", "download_growth_30d", "top_quartile"]
+                     "best_topic_score", "download_growth_30d", "top_quartile",
+                     "downloads_30d", "downloads_all_time"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
 
         topic_encodings = self.encode_topic(df["best_topic"])

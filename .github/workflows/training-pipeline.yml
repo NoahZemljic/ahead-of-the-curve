@@ -14,7 +14,9 @@ jobs:
         run: docker build -f docker/training-pipeline/Dockerfile -t training-pipeline .
 
       - name: Write GCP credentials
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: echo "$GCP_SA_KEY" > /tmp/gcp-key.json
 
       - name: Run training pipeline
         run: |
