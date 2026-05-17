@@ -46,6 +46,8 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --service-account=$SA_EMAIL \
             --set-env-vars=HF_TOKEN=${{ secrets.HF_TOKEN }},HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }},GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }} \
+            --memory=4Gi \
+            --cpu=2 \
             --task-timeout=3600 \
             --max-retries=1
 
