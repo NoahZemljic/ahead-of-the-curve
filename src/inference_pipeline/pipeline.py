@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 from google.cloud import storage
 
 from feature_pipeline.compute_features import FeatureComputer
+from feature_pipeline.ingest import HFIngestor
 from hopsworks_store import PredictionsStore
-from ingest import HFIngestor
 from preprocessing import PreProcessor
 
 load_dotenv()
