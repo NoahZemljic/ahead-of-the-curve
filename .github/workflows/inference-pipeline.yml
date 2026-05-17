@@ -1,4 +1,4 @@
-name: Deploy Inference Worker
+name: Inference Pipeline
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
       - src/inference_pipeline/hopsworks_store.py
       - src/feature_pipeline/ingest.py
       - src/feature_pipeline/compute_features.py
-      - docker/inference-worker/**
+      - docker/inference-pipeline/**
 
 jobs:
   deploy:
@@ -18,7 +18,9 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Write GCP credentials
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: echo "$GCP_SA_KEY" > /tmp/gcp-key.json
 
       - name: Authenticate gcloud
         run: gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
@@ -28,17 +30,17 @@ jobs:
 
       - name: Build and push image
         env:
-          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-worker:${{ github.sha }}
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-pipeline:${{ github.sha }}
         run: |
-          docker build -f docker/inference-worker/Dockerfile -t $IMAGE .
+          docker build -f docker/inference-pipeline/Dockerfile -t $IMAGE .
           docker push $IMAGE
 
       - name: Deploy Cloud Run Job
         env:
-          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-worker:${{ github.sha }}
+          IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/inference/inference-pipeline:${{ github.sha }}
           SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
         run: |
-          gcloud run jobs deploy inference-worker \
+          gcloud run jobs deploy inference-pipeline \
             --image=$IMAGE \
             --region=${{ secrets.GCP_REGION }} \
             --project=${{ secrets.GCP_PROJECT_ID }} \
@@ -51,8 +53,8 @@ jobs:
         env:
           SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
         run: |
-          JOB_URI="https://run.googleapis.com/v2/projects/${{ secrets.GCP_PROJECT_ID }}/locations/${{ secrets.GCP_REGION }}/jobs/inference-worker:run"
-          gcloud scheduler jobs create http inference-worker-bihourly \
+          JOB_URI="https://run.googleapis.com/v2/projects/${{ secrets.GCP_PROJECT_ID }}/locations/${{ secrets.GCP_REGION }}/jobs/inference-pipeline:run"
+          gcloud scheduler jobs create http inference-pipeline-bihourly \
             --schedule="0 */2 * * *" \
             --uri="$JOB_URI" \
             --http-method=POST \
@@ -60,7 +62,7 @@ jobs:
             --location=${{ secrets.GCP_REGION }} \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             2>/dev/null || \
-          gcloud scheduler jobs update http inference-worker-bihourly \
+          gcloud scheduler jobs update http inference-pipeline-bihourly \
             --schedule="0 */2 * * *" \
             --uri="$JOB_URI" \
             --http-method=POST \
