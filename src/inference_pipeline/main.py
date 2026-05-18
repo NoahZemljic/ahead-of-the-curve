@@ -44,6 +44,7 @@ class Prediction(BaseModel):
 
 class ModelPrediction(BaseModel):
     model_id: str
+    best_topic: str
     predicted_at: datetime
     downloads_30d_pred: float
     top_quartile_prob: float

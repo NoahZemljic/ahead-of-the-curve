@@ -83,6 +83,7 @@ class InferencePipeline:
 
         predictions_df = pd.DataFrame({
             "model_id": model_ids,
+            "best_topic": features_df["best_topic"].tolist(),
             "predicted_at": predicted_at,
             "downloads_30d_pred": downloads_30d_pred,
             "top_quartile_prob": top_quartile_prob,
