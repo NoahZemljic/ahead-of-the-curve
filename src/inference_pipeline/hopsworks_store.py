@@ -21,7 +21,7 @@ class PredictionsStore(HopsworksFeatureStoreClient):
     def __init__(self):
         super().__init__()
         self.FEATURE_GROUP_NAME = "frontier_models_predictions"
-        self.FEATURE_GROUP_VERSION = 1
+        self.FEATURE_GROUP_VERSION = 2
 
     def insert(self, df: pd.DataFrame) -> None:
         if df.empty:
