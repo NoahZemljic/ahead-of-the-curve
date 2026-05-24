@@ -47,7 +47,9 @@ class Labeller:
             downloads_30d = df.at[i, "downloads_30d"]
             downloads_all = df.at[i, "downloads_all_time"]
 
-            if downloads_30d == downloads_all:
+            if pd.isna(downloads_30d) or pd.isna(downloads_all):
+                continue
+            elif downloads_30d == downloads_all:
                 df.at[i, "download_growth_30d"] = downloads_30d
             else:
                 # Average the last 30 days of downloads with the all-time
