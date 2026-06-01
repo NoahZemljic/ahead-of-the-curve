@@ -11,16 +11,18 @@ name = "ahead-of-the-curve"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "dagshub" },
-    { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "python-dotenv" },
-    { name = "sentence-transformers" },
-    { name = "xgboost" },
 ]
 
 [package.dev-dependencies]
+dashboard = [
+    { name = "gradio" },
+    { name = "httpx" },
+    { name = "pandas" },
+    { name = "python-dotenv" },
+]
 dev = [
     { name = "ipykernel" },
 ]
@@ -69,16 +71,18 @@ training = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dagshub", specifier = ">=0.7.0" },
-    { name = "mlflow", specifier = ">=3.11.1" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
-    { name = "sentence-transformers", specifier = ">=5.4.1" },
-    { name = "xgboost", specifier = ">=3.2.0" },
 ]
 
 [package.metadata.requires-dev]
+dashboard = [
+    { name = "gradio", specifier = ">=6.13.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
+]
 dev = [{ name = "ipykernel", specifier = ">=7.2.0" }]
 feature = [
     { name = "hopsworks", extras = ["python"], specifier = ">=4.8.1" },
