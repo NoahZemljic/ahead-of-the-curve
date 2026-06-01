@@ -142,7 +142,7 @@ html, body, .gradio-container, gradio-app {
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    min-width: 190px !important;
+    min-width: 240px !important;
 }
 #topic-dropdown input {
     background: transparent !important;
