@@ -17,4 +17,4 @@ jobs:
           docker run --rm \
             -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
             -e HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }} \
-            feature-pipeline backfill_pipeline.py
+            feature-pipeline feature_pipeline.backfill_pipeline

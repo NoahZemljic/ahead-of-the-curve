@@ -10,6 +10,19 @@ dependencies = [
     "python-dotenv>=1.1.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/common",
+    "src/dashboard",
+    "src/feature_pipeline",
+    "src/inference_pipeline",
+    "src/training_pipeline",
+]
+
 [dependency-groups]
 feature = [
     "hopsworks[python]>=4.8.1",

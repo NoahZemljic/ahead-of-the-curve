@@ -264,13 +264,18 @@ Every pipeline runs locally with `uv`, and the production ones also deploy to GC
 workflows in `.github/workflows/`. The order below follows the flow of data: populate the
 store, train on it, then serve predictions. This work well as a first end-to-end run.
 
+Each pipeline lives in its own package (`feature_pipeline`, `training_pipeline`,
+`inference_pipeline`, `dashboard`) and is run with `python -m`. `uv run` installs the project
+and the requested dependency group on the fly, so always pass the matching `--group` — the
+groups are optional, and a bare `uv run` would otherwise drop their dependencies.
+
 ### 5.1 Backfill (run once, first)
 
 A new feature store is empty and live labels take 30 days to mature. The backfill gives
 training data to learn from immediately by pulling ~90 days of frontier models in one pass:
 
 ```bash
-uv run python -m src.feature_pipeline.backfill_pipeline
+uv run --group feature python -m feature_pipeline.backfill_pipeline
 ```
 
 In GitHub Actions, trigger the **Feature Pipeline Backfill** workflow manually using `workflow_dispatch`.
@@ -281,7 +286,7 @@ The feature pipeline keeps the store current, fetching each day's new models and
 features:
 
 ```bash
-uv run python -m src.feature_pipeline.pipeline
+uv run --group feature python -m feature_pipeline.pipeline
 ```
 
 In Github Actions, it runs automatically every day at **22:00 UTC** via `feature-pipeline.yml`.
@@ -293,7 +298,7 @@ Trains both models, logs every run to DagsHub MLflow and promotes a challenger t
 uploaded to GCS as a `model.joblib`, which in turn triggers a fresh revision of the inference service:
 
 ```bash
-uv run python -m src.training_pipeline.pipeline
+uv run --group training python -m training_pipeline.pipeline
 ```
 
 Runs weekly, every **Monday at 02:00 UTC**, via `training-pipeline.yml`.
@@ -304,7 +309,7 @@ The inference pipeline is the batch job that scores newly uploaded models agains
 champions. To run it locally:
 
 ```bash
-uv run python -m src.inference_pipeline.pipeline
+uv run --group inference-worker python -m inference_pipeline.pipeline
 ```
 
 To deploy it, push a change under `src/inference_pipeline/` (or trigger `inference-pipeline.yml`
@@ -330,7 +335,7 @@ The predictions are served through a FastAPI service It deploys as a Cloud Run *
 `docker/inference-deployment/` (or trigger `inference-deployment.yml`). For local development:
 
 ```bash
-uv run uvicorn src.inference_pipeline.main:app --reload --port 8080
+uv run --group inference uvicorn inference_pipeline.main:app --reload --port 8080
 # → GET  /health
 #   GET  /predictions?limit=50
 #   POST /predict
@@ -347,7 +352,7 @@ PORT=7860
 ```
 
 ```bash
-uv run python src/dashboard/app.py
+uv run --group dashboard python -m dashboard.app
 # → http://0.0.0.0:7860
 ```
 

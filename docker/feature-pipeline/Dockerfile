@@ -9,10 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev &
 RUN uv sync --frozen --no-dev --group feature --no-install-project --no-cache
 
 COPY src/common ./common
-COPY src/feature_pipeline/ .
+COPY src/feature_pipeline ./feature_pipeline
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
 
-ENTRYPOINT ["python"]
-CMD ["pipeline.py"]
+ENTRYPOINT ["python", "-m"]
+CMD ["feature_pipeline.pipeline"]

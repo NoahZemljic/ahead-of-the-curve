@@ -1,9 +1,9 @@
 import logging
 
-from data_loader import TrainingDataLoader
-from deploy import GCPDeployer
-from preprocessing import PreProcessor
-from train_models import Trainer
+from training_pipeline.data_loader import TrainingDataLoader
+from training_pipeline.deploy import GCPDeployer
+from training_pipeline.preprocessing import PreProcessor
+from training_pipeline.train_models import Trainer
 
 logger = logging.getLogger(__name__)
 

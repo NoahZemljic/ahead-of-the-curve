@@ -2,10 +2,10 @@ import logging
 
 import pandas as pd
 
-from compute_features import FeatureComputer
-from compute_labels import Labeller
-from hopsworks_store import HopsworksStore
-from ingest import HFIngestor
+from feature_pipeline.compute_features import FeatureComputer
+from feature_pipeline.compute_labels import Labeller
+from feature_pipeline.hopsworks_store import HopsworksStore
+from feature_pipeline.ingest import HFIngestor
 
 logger = logging.getLogger(__name__)
 

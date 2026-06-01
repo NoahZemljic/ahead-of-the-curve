@@ -9,8 +9,8 @@ from google.cloud import storage
 
 from feature_pipeline.compute_features import FeatureComputer
 from feature_pipeline.ingest import HFIngestor
-from hopsworks_store import PredictionsStore
-from preprocessing import PreProcessor
+from inference_pipeline.hopsworks_store import PredictionsStore
+from inference_pipeline.preprocessing import PreProcessor
 
 load_dotenv()
 

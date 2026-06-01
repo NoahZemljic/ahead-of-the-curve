@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from google.cloud import storage
 from pydantic import BaseModel
 
-from preprocessing import PreProcessor
+from inference_pipeline.preprocessing import PreProcessor
 
 load_dotenv()
 
