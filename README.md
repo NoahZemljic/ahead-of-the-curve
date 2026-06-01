@@ -95,7 +95,7 @@ The following tools must be installed locally before setting the project up:
 - **[Python 3.11](https://www.python.org/downloads/)**
 - **[uv](https://docs.astral.sh/uv/getting-started/installation/)**
 - **[Docker](https://docs.docker.com/get-docker/)**
-- **[Google Cloud CLI (`gcloud`)](https://cloud.google.com/sdk/docs/install)**
+- **[Google Cloud CLI (`gcloud`)](https://cloud.google.com/sdk/docs/install)** _(optional — only needed to deploy the inference pipeline / deployment to Cloud Run manually; CI handles this otherwise)_
 
 ---
 
@@ -311,7 +311,7 @@ To deploy it, push a change under `src/inference_pipeline/` (or trigger `inferen
 manually). The workflow builds `docker/inference-pipeline`, deploys it as a Cloud Run **Job**
 and creates a Cloud Scheduler trigger that fires it **every two hours** (`0 */2 * * *`).
 
-To build and deploy by hand, run from the project root with `-f`:
+To build and deploy by hand, run from the project root:
 
 ```bash
 IMAGE=<region>-docker.pkg.dev/<project>/inference/inference-pipeline:latest
