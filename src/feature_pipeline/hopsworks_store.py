@@ -31,6 +31,9 @@ class HopsworksStore(HopsworksFeatureStoreClient):
 
         df["has_paper_tag"] = df["has_paper_tag"].astype(int)
 
+        for col in ["downloads_30d", "downloads_all_time"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
         for col in [
             "top_quartile",
             "download_growth_30d",
