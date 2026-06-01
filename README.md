@@ -170,7 +170,7 @@ Hopsworks holds the engineered features and the predictions.
 1. Sign up at [app.hopsworks.ai](https://app.hopsworks.ai) (Google, GitHub, or email).
 2. On the landing page, click **Create New Project**, name it and confirm.
 3. Open the account menu (top right) → **Account Settings** → **API** → **New API key**.
-   Name it, ensure the `featurestore`, `project`, and `job` scopes are selected, and create it.
+   Name it, ensure the `featurestore`, `project`, `job`, and `serving` scopes are selected, and create it.
 4. Copy the key into `.env`:
 
    ```env
