@@ -120,12 +120,6 @@ html, body, .gradio-container, gradio-app {
     color: var(--hf-muted);
     font-weight: 400;
 }
-.last-updated p {
-    color: var(--hf-muted);
-    font-size: 0.82rem;
-    text-align: right;
-    margin: 10px 4px 0 0;
-}
 /* Controls row: vertically centre the dropdown and refresh button, and match the
    85%-wide centred table so the left edges line up */
 .controls-row {
@@ -237,12 +231,6 @@ class PredictionsDashboard:
             f'</div>'
         )
 
-    def format_timestamp(self, raw) -> str:
-        ts = pd.Timestamp(raw)
-        if ts.tz is None:
-            ts = ts.tz_localize("UTC")
-        return ts.tz_convert("UTC").strftime("%Y-%m-%d %H:%M UTC")
-
     def empty_state(self, label: str):
         if label == PLACEHOLDER:
             top = self.metric_card("Top predicted model", "—", "Select a topic to view predictions")
@@ -250,7 +238,7 @@ class PredictionsDashboard:
         else:
             top = self.metric_card("Top predicted model", "—", f"No {label.lower()} predictions yet")
             count = self.metric_card("Predicted top quartile", "0", f"of 0 {label.lower()} predictions")
-        return top, count, "", pd.DataFrame(columns=TABLE_HEADERS)
+        return top, count, pd.DataFrame(columns=TABLE_HEADERS)
 
     def on_topic_change(self, label: str):
         if label == PLACEHOLDER:
@@ -263,7 +251,7 @@ class PredictionsDashboard:
         except Exception as exc:
             logger.exception("Failed to fetch predictions")
             error = self.metric_card("Error", "—", f"Could not reach inference API: {exc}")
-            return error, error, "", pd.DataFrame(columns=TABLE_HEADERS)
+            return error, error, pd.DataFrame(columns=TABLE_HEADERS)
 
         if df.empty or "best_topic" not in df.columns:
             return self.empty_state(label)
@@ -277,7 +265,6 @@ class PredictionsDashboard:
         top = df.iloc[0]
         top_quartile_count = int(df["top_quartile_pred"].sum())
         total = len(df)
-        predicted_at = self.format_timestamp(df["predicted_at"].iloc[0])
 
         top_card = self.metric_card(
             "Top predicted model",
@@ -297,7 +284,7 @@ class PredictionsDashboard:
             "Top Quartile": df["top_quartile_pred"].map({1: "Yes", 0: "No"}),
         })
 
-        return top_card, tq_card, f"_Last updated: {predicted_at}_", display_df
+        return top_card, tq_card, display_df
 
     def build_ui(self) -> gr.Blocks:
         hf_yellow = gr.themes.Color(
@@ -335,8 +322,6 @@ class PredictionsDashboard:
                     top_card = gr.HTML()
                     tq_card = gr.HTML()
 
-                last_updated = gr.Markdown(elem_classes=["last-updated"])
-
                 table = gr.Dataframe(
                     elem_id="predictions-table",
                     headers=TABLE_HEADERS,
@@ -347,7 +332,7 @@ class PredictionsDashboard:
                     label="All predictions for selected topic",
                 )
 
-            outputs = [top_card, tq_card, last_updated, table, topic]
+            outputs = [top_card, tq_card, table, topic]
             topic.change(self.on_topic_change, inputs=topic, outputs=outputs)
             refresh.click(self.on_topic_change, inputs=topic, outputs=outputs)
             demo.load(self.on_topic_change, inputs=topic, outputs=outputs)
