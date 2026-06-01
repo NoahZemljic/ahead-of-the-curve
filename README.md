@@ -319,6 +319,11 @@ and creates a Cloud Scheduler trigger that fires it **every two hours** (`0 */2 
 To build and deploy by hand, run from the project root:
 
 ```bash
+# One-time: authenticate gcloud and register it as Docker's credential helper
+gcloud auth activate-service-account --key-file=.secrets/gcp-key.json   # or: gcloud auth login
+gcloud config set project <project>
+gcloud auth configure-docker <region>-docker.pkg.dev
+
 IMAGE=<region>-docker.pkg.dev/<project>/inference/inference-pipeline:latest
 
 docker build --platform linux/amd64 -f docker/inference-pipeline/Dockerfile -t "$IMAGE" .
@@ -328,6 +333,9 @@ gcloud run jobs deploy inference-pipeline \
   --image="$IMAGE" --region=<region> --memory=4Gi --cpu=2 \
   --set-env-vars=HF_TOKEN=...,HOPSWORKS_API_KEY=...,GCS_BUCKET_NAME=...
 ```
+
+> Without `gcloud auth configure-docker`, the push hits Artifact Registry unauthenticated and
+> fails with `... do not have permission artifactregistry.repositories.uploadArtifacts`.
 
 ### 5.5 Inference deployment
 
@@ -339,6 +347,19 @@ uv run --group inference uvicorn inference_pipeline.main:app --reload --port 808
 # → GET  /health
 #   GET  /predictions?limit=50
 #   POST /predict
+```
+
+To build and deploy the service by hand (after the one-time `gcloud auth` setup shown in 5.4):
+
+```bash
+IMAGE=<region>-docker.pkg.dev/<project>/inference/inference-deployment:latest
+
+docker build --platform linux/amd64 -f docker/inference-deployment/Dockerfile -t "$IMAGE" .
+docker push "$IMAGE"
+
+gcloud run deploy <CLOUD_RUN_SERVICE> \
+  --image="$IMAGE" --region=<region> --allow-unauthenticated \
+  --set-env-vars=GCS_BUCKET_NAME=...
 ```
 
 ### 5.6 Dashboard (run locally)
