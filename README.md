@@ -87,19 +87,31 @@ built and run in isolation.
 
 ---
 
-## 3. Setup
+## 3. Prerequisites
+
+The following tools must be installed locally before setting the project up:
+
+- **[Git](https://git-scm.com/downloads)**
+- **[Python 3.11](https://www.python.org/downloads/)**
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**
+- **[Docker](https://docs.docker.com/get-docker/)**
+- **[Google Cloud CLI (`gcloud`)](https://cloud.google.com/sdk/docs/install)**
+
+---
+
+## 4. Setup
 
 The project relies on a few free external services, and all of their credentials live in a
 single `.env` file. The steps below cover the local setup first, then each service in turn, filling in the corresponding environment variables as you go.
 
-### 3.1 Clone the repository
+### 4.1 Clone the repository
 
 ```bash
 git clone https://github.com/<your-org>/ahead-of-the-curve.git
 cd ahead-of-the-curve
 ```
 
-### 3.2 Install dependencies with `uv`
+### 4.2 Install dependencies with `uv`
 
 Dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and Python is pinned to 3.11
 (see `.python-version`). Install everything in one go, or just the group you need:
@@ -118,7 +130,7 @@ uv sync --group dashboard    # Gradio dashboard
 > On Apple Silicon, Docker images must be built with `--platform linux/amd64`, as the
 > `hops-deltalake` dependency has no arm64 wheel.
 
-### 3.3 Create your environment file
+### 4.3 Create your environment file
 
 Every credential lives in the `.env` file. Start from the template:
 
@@ -138,7 +150,7 @@ through obtaining each one, service by service.
 | `GOOGLE_APPLICATION_CREDENTIALS`                                       | Path to the service-account JSON used for GCP authentication                                |
 | `INFERENCE_API_URL`, `PORT`                                            | Base URL of the inference API the dashboard reads from, and the port the dashboard binds to |
 
-### 3.4 Hugging Face
+### 4.4 Hugging Face
 
 The Hub is where all model data comes from. Follow the following steps below to set it up:
 
@@ -151,7 +163,7 @@ The Hub is where all model data comes from. Follow the following steps below to 
    HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx
    ```
 
-### 3.5 Hopsworks
+### 4.5 Hopsworks
 
 Hopsworks holds the engineered features and the predictions.
 
@@ -168,7 +180,7 @@ Hopsworks holds the engineered features and the predictions.
    Note: The feature groups (`frontier_models_features` and
    `frontier_models_predictions`) are created automatically on first write.
 
-### 3.6 DagsHub
+### 4.6 DagsHub
 
 DagsHub provides the hosted MLflow server where the training pipeline logs runs and keeps thechampion model.
 
@@ -187,7 +199,7 @@ DagsHub provides the hosted MLflow server where the training pipeline logs runs 
    DAGSHUB_REPO_NAME=ahead-of-the-curve
    ```
 
-### 3.7 Google Cloud
+### 4.7 Google Cloud
 
 Google Cloud stores the trained models and runs inference. The whole setup is done through the
 Cloud Console UI:
@@ -246,13 +258,13 @@ Your `.env` is now complete and the project is ready to run.
 
 ---
 
-## 4. Running the Pipelines
+## 5. Running the Pipelines
 
 Every pipeline runs locally with `uv`, and the production ones also deploy to GCP through the
 workflows in `.github/workflows/`. The order below follows the flow of data: populate the
 store, train on it, then serve predictions. This work well as a first end-to-end run.
 
-### 4.1 Backfill (run once, first)
+### 5.1 Backfill (run once, first)
 
 A new feature store is empty and live labels take 30 days to mature. The backfill gives
 training data to learn from immediately by pulling ~90 days of frontier models in one pass:
@@ -263,7 +275,7 @@ uv run python -m src.feature_pipeline.backfill_pipeline
 
 In GitHub Actions, trigger the **Feature Pipeline Backfill** workflow manually using `workflow_dispatch`.
 
-### 4.2 Feature pipeline (daily)
+### 5.2 Feature pipeline (daily)
 
 The feature pipeline keeps the store current, fetching each day's new models and appending their
 features:
@@ -274,7 +286,7 @@ uv run python -m src.feature_pipeline.pipeline
 
 In Github Actions, it runs automatically every day at **22:00 UTC** via `feature-pipeline.yml`.
 
-### 4.3 Training pipeline (weekly)
+### 5.3 Training pipeline (weekly)
 
 Trains both models, logs every run to DagsHub MLflow and promotes a challenger to
 `champion` only when it beats the incumbent by at least 1%. The promoted model is
@@ -286,7 +298,7 @@ uv run python -m src.training_pipeline.pipeline
 
 Runs weekly, every **Monday at 02:00 UTC**, via `training-pipeline.yml`.
 
-### 4.4 Inference pipeline (bi-hourly)
+### 5.4 Inference pipeline (bi-hourly)
 
 The inference pipeline is the batch job that scores newly uploaded models against the current
 champions. To run it locally:
@@ -312,7 +324,7 @@ gcloud run jobs deploy inference-pipeline \
   --set-env-vars=HF_TOKEN=...,HOPSWORKS_API_KEY=...,GCS_BUCKET_NAME=...
 ```
 
-### 4.5 Inference deployment
+### 5.5 Inference deployment
 
 The predictions are served through a FastAPI service It deploys as a Cloud Run **Service** whenever you push under `src/inference_pipeline/` or
 `docker/inference-deployment/` (or trigger `inference-deployment.yml`). For local development:
@@ -324,7 +336,7 @@ uv run uvicorn src.inference_pipeline.main:app --reload --port 8080
 #   POST /predict
 ```
 
-### 4.6 Dashboard (run locally)
+### 5.6 Dashboard (run locally)
 
 Point the dashboard at the API (your deployed service, or the local one above) and launch it:
 
@@ -344,7 +356,7 @@ The dashboard is also run as a [**Hugging Face Space**](https://huggingface.co/s
 
 ---
 
-## 5. Repository Layout
+## 6. Repository Layout
 
 A map of the repository, with each directory annotated by the role it plays:
 
